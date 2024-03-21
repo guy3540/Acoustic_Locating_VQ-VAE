@@ -5,9 +5,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import torch.optim as optim
 from scipy.signal import savgol_filter
+from six.moves import xrange
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -73,38 +75,46 @@ class VQVAE(nn.Module):
 
         return loss, x_recon, perplexity
 
-    def train_on_data(self, optimizer: optim, dataloader: DataLoader, n_epochs, data_variance):
+    def train_on_data(self, optimizer: optim, dataloader: DataLoader, num_training_updates, data_variance):
         self.train()
         train_res_recon_error = []
         train_res_perplexity = []
 
+        total_samples = len(dataloader.dataset)
+        print_every = total_samples/10
+
         inputs: torch.Tensor
         labels: torch.Tensor
 
-        for i_epoch in range(n_epochs):
-            for step, (inputs, labels) in enumerate(dataloader):
-                inputs = inputs.to(device)
-                optimizer.zero_grad()
+        for i in xrange(num_training_updates):
+            (inputs, _) = next(iter(dataloader))
+            inputs = inputs.to(device)
+            optimizer.zero_grad()
 
-                vq_loss, data_recon, perplexity = self(inputs)
-                recon_error = F.mse_loss(data_recon, inputs) / data_variance
-                loss = recon_error + vq_loss
-                loss.backward()
+            vq_loss, data_recon, perplexity = self(inputs)
+            recon_error = F.mse_loss(data_recon, inputs) / data_variance
+            loss = recon_error + vq_loss
+            loss.backward()
 
-                optimizer.step()
+            optimizer.step()
 
-                train_res_recon_error.append(recon_error.item())
-                train_res_perplexity.append(perplexity.item())
+            train_res_recon_error.append(recon_error.item())
+            train_res_perplexity.append(perplexity.item())
 
-                if (step + 1) % 100 == 0:
-                    print('%d iterations' % (step + 1))
-                    print('recon_error: %.3f' % np.mean(train_res_recon_error[-100:]))
-                    print('perplexity: %.3f' % np.mean(train_res_perplexity[-100:]))
-                    print()
+            if (i+1) % 100 == 0:
+                print('%d iterations' % (i + 1))
+                print('recon_error: %.3f' % np.mean(train_res_recon_error[-100:]))
+                print('perplexity: %.3f' % np.mean(train_res_perplexity[-100:]))
+                print()
+
+        self.train_res_recon_error = train_res_recon_error
+        self.train_res_perplexity = train_res_perplexity
 
     def plot_losses(self):
-        train_res_recon_error_smooth = savgol_filter(self.train_res_recon_error, 201, 7)
-        train_res_perplexity_smooth = savgol_filter(self.train_res_perplexity, 201, 7)
+        if not self.train_res_recon_error:  # Return if is empty
+            return [], []
+        train_res_recon_error_smooth = savgol_filter(self.train_res_recon_error, len(self.train_res_recon_error), 7)
+        train_res_perplexity_smooth = savgol_filter(self.train_res_perplexity, len(self.train_res_perplexity), 7)
         f = plt.figure(figsize=(16, 8))
         ax = f.add_subplot(1, 2, 1)
         ax.plot(train_res_recon_error_smooth)
@@ -116,3 +126,5 @@ class VQVAE(nn.Module):
         ax.plot(train_res_perplexity_smooth)
         ax.set_title('Smoothed Average codebook usage (perplexity).')
         ax.set_xlabel('iteration')
+        return f, ax
+
