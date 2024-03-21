@@ -2,21 +2,18 @@ from __future__ import print_function
 
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.signal import savgol_filter
-
-from six.moves import xrange
-
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional as f
 from torch.utils.data import DataLoader
 import torch.optim as optim
-
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 from torchvision.utils import make_grid
 
 from VQVAE_class import VQVAE
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class Residual(nn.Module):
@@ -47,7 +44,7 @@ class ResidualStack(nn.Module):
     def forward(self, x):
         for i in range(self._num_residual_layers):
             x = self._layers[i](x)
-        return F.relu(x)
+        return f.relu(x)
 
 
 class Encoder(nn.Module):
@@ -77,10 +74,10 @@ class Encoder(nn.Module):
 
     def forward(self, inputs):
         x = self._conv_1(inputs)
-        x = F.relu(x)
+        x = f.relu(x)
 
         x = self._conv_2(x)
-        x = F.relu(x)
+        x = f.relu(x)
 
         x = self._conv_3(x)
         x = self._residual_stack(x)
@@ -117,9 +114,30 @@ class Decoder(nn.Module):
         x = self._residual_stack(x)
 
         x = self._conv_trans_1(x)
-        x = F.relu(x)
+        x = f.relu(x)
 
         return self._conv_trans_2(x)
+
+
+def show(img):
+    np_img = img.numpy()
+    fig = plt.imshow(np.transpose(np_img, (1, 2, 0)), interpolation='nearest')
+    fig.axes.get_xaxis().set_visible(False)
+    fig.axes.get_yaxis().set_visible(False)
+
+
+def view_reconstructions(model: VQVAE, dataloader: DataLoader):
+    model.eval()
+
+    (originals, _) = next(iter(dataloader))
+    originals = originals.to(device)
+
+    _, reconstructions, _ = model(originals)
+
+    show(make_grid(reconstructions.cpu().data) + 0.5, )
+    plt.show()
+    show(make_grid(originals.cpu()+0.5))
+    plt.show()
 
 
 def main():
@@ -135,11 +153,7 @@ def main():
 
     commitment_cost = 0.25
 
-    decay = 0.99
-
     learning_rate = 1e-3
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     training_data = datasets.CIFAR10(root="data", train=True, download=True,
                                      transform=transforms.Compose([
@@ -171,9 +185,11 @@ def main():
 
     model.train_on_data(optimizer, training_loader, num_training_updates, data_variance)
 
-    f, ax = model.plot_losses()
+    model.plot_losses()
 
     plt.show()
+
+    view_reconstructions(model, validation_loader)
 
 
 if __name__ == "__main__":

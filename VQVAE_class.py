@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional as f
 from torch.utils.data import DataLoader
 import torch.optim as optim
 from scipy.signal import savgol_filter
@@ -46,8 +46,8 @@ class VectorQuantizer(nn.Module):
         quantized = torch.matmul(encodings, self._embedding.weight).view(input_shape)
 
         # Loss
-        e_latent_loss = F.mse_loss(quantized.detach(), inputs)
-        q_latent_loss = F.mse_loss(quantized, inputs.detach())
+        e_latent_loss = f.mse_loss(quantized.detach(), inputs)
+        q_latent_loss = f.mse_loss(quantized, inputs.detach())
         loss = q_latent_loss + self._commitment_cost * e_latent_loss
 
         quantized = inputs + (quantized - inputs).detach()
@@ -68,20 +68,27 @@ class VQVAE(nn.Module):
 
         self.train_res_perplexity = []
         self.train_res_recon_error = []
-    def forward(self, x):
-        z = self._encoder(x)
-        loss, quantized, perplexity, _ = self._vq(z)
-        x_recon = self._decoder(quantized)
 
+    def encode(self, x):
+        return self._encoder(x)
+
+    def decode(self, quantized):
+        return self._decoder(quantized)
+
+    def quantize_latent(self, z):
+        loss, quantized, perplexity, encodings = self._vq(z)
+        return loss, quantized, perplexity, encodings
+
+    def forward(self, x):
+        z = self.encode(x)
+        loss, quantized, perplexity, _ = self.quantize_latent(z)
+        x_recon = self._decoder(quantized)
         return loss, x_recon, perplexity
 
     def train_on_data(self, optimizer: optim, dataloader: DataLoader, num_training_updates, data_variance):
         self.train()
         train_res_recon_error = []
         train_res_perplexity = []
-
-        total_samples = len(dataloader.dataset)
-        print_every = total_samples/10
 
         inputs: torch.Tensor
         labels: torch.Tensor
@@ -92,7 +99,7 @@ class VQVAE(nn.Module):
             optimizer.zero_grad()
 
             vq_loss, data_recon, perplexity = self(inputs)
-            recon_error = F.mse_loss(data_recon, inputs) / data_variance
+            recon_error = f.mse_loss(data_recon, inputs) / data_variance
             loss = recon_error + vq_loss
             loss.backward()
 
@@ -115,16 +122,15 @@ class VQVAE(nn.Module):
             return [], []
         train_res_recon_error_smooth = savgol_filter(self.train_res_recon_error, len(self.train_res_recon_error), 7)
         train_res_perplexity_smooth = savgol_filter(self.train_res_perplexity, len(self.train_res_perplexity), 7)
-        f = plt.figure(figsize=(16, 8))
-        ax = f.add_subplot(1, 2, 1)
+        fig = plt.figure(figsize=(16, 8))
+        ax = fig.add_subplot(1, 2, 1)
         ax.plot(train_res_recon_error_smooth)
         ax.set_yscale('log')
-        ax.set_title('Smoothed NMSE.')
+        ax.set_title('Smoothed Normalized MSE.')
         ax.set_xlabel('iteration')
 
-        ax = f.add_subplot(1, 2, 2)
+        ax = fig.add_subplot(1, 2, 2)
         ax.plot(train_res_perplexity_smooth)
         ax.set_title('Smoothed Average codebook usage (perplexity).')
         ax.set_xlabel('iteration')
         return f, ax
-
