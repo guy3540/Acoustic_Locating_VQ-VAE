@@ -142,7 +142,7 @@ def view_reconstructions(model: VQVAE, dataloader: DataLoader):
 
 def main():
     batch_size = 256
-    num_training_updates = 1500
+    num_training_updates = 15000
 
     num_hiddens = 128
     num_residual_hiddens = 32
