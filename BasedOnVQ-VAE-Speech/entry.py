@@ -14,7 +14,7 @@ import librosa
 from convolutional_vq_vae import ConvolutionalVQVAE
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-DATASET_PATH = os.path.join(os.path.abspath(__file__) , "data")
+DATASET_PATH = os.path.join(os.getcwd(), "data")
 BATHC_SIZE = 1
 LR = 4e-4  # as is in the speach article
 NFFT = 512
