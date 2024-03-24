@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import torch
 import torchaudio
@@ -12,7 +14,7 @@ import librosa
 from convolutional_vq_vae import ConvolutionalVQVAE
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-DATASET_PATH = r"C:\Users\reiem\PycharmProjects\Acoustic_Locating_VQ-VAE\BasedOnVQ-VAE-Speech\modules\data"
+DATASET_PATH = os.path.join(os.path.abspath(__file__) , "data")
 BATHC_SIZE = 1
 LR = 4e-4  # as is in the speach article
 NFFT = 512
