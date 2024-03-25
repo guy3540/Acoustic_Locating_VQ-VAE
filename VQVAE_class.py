@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as f
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import torch.optim as optim
 from scipy.signal import savgol_filter
@@ -16,7 +16,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class VectorQuantizer(nn.Module):
-    def __init__(self, num_embeddings, embedding_dim, commitment_cost):
+    def __init__(self, num_embeddings, embedding_dim, commitment_cost, flag_flatten=True):
         super(VectorQuantizer, self).__init__()
 
         self._embedding_dim = embedding_dim
@@ -26,17 +26,16 @@ class VectorQuantizer(nn.Module):
         self._embedding.weight.data.uniform_(-1 / self._num_embeddings, 1 / self._num_embeddings)
         self._commitment_cost = commitment_cost
 
+        self.flag_flatten = flag_flatten
+
     def forward(self, inputs):
         input_shape = inputs.shape
 
-        # Flatten input
         flat_input = inputs.view(-1, self._embedding_dim)
-
         # Calculate distances
         distances = (torch.sum(flat_input ** 2, dim=1, keepdim=True)
                      + torch.sum(self._embedding.weight ** 2, dim=1)
                      - 2 * torch.matmul(flat_input, self._embedding.weight.t()))
-
         # Encoding
         encoding_indices = torch.argmin(distances, dim=1).unsqueeze(1)
         encodings = torch.zeros(encoding_indices.shape[0], self._num_embeddings, device=inputs.device)
@@ -46,8 +45,8 @@ class VectorQuantizer(nn.Module):
         quantized = torch.matmul(encodings, self._embedding.weight).view(input_shape)
 
         # Loss
-        e_latent_loss = f.mse_loss(quantized.detach(), inputs)
-        q_latent_loss = f.mse_loss(quantized, inputs.detach())
+        e_latent_loss = F.mse_loss(quantized.detach(), inputs)
+        q_latent_loss = F.mse_loss(quantized, inputs.detach())
         loss = q_latent_loss + self._commitment_cost * e_latent_loss
 
         quantized = inputs + (quantized - inputs).detach()
@@ -59,11 +58,11 @@ class VectorQuantizer(nn.Module):
 
 class VQVAE(nn.Module):
     def __init__(self, encoder: nn.Module, decoder: nn.Module,
-                 num_embeddings: int, embedding_dim: int, commitment_cost: float):
+                 num_embeddings: int, embedding_dim: int, commitment_cost: float, flag_flatten: bool = True):
         super(VQVAE, self).__init__()
 
         self._encoder = encoder
-        self._vq = VectorQuantizer(num_embeddings, embedding_dim, commitment_cost)
+        self._vq = VectorQuantizer(num_embeddings, embedding_dim, commitment_cost, flag_flatten)
         self._decoder = decoder
 
         self.train_res_perplexity = []
@@ -82,7 +81,7 @@ class VQVAE(nn.Module):
     def forward(self, x):
         z = self.encode(x)
         loss, quantized, perplexity, _ = self.quantize_latent(z)
-        x_recon = self._decoder(quantized)
+        x_recon = self.decode(quantized)
         return loss, x_recon, perplexity
 
     def train_on_data(self, optimizer: optim, dataloader: DataLoader, num_training_updates, data_variance):
@@ -99,7 +98,10 @@ class VQVAE(nn.Module):
             optimizer.zero_grad()
 
             vq_loss, data_recon, perplexity = self(inputs)
-            recon_error = f.mse_loss(data_recon, inputs) / data_variance
+            if not inputs.shape == data_recon.shape:
+                recon_error = F.mse_loss(data_recon, inputs[:, :, :-1]) / data_variance
+            else:
+                recon_error = F.mse_loss(data_recon, inputs) / data_variance
             loss = recon_error + vq_loss
             loss.backward()
 
@@ -133,4 +135,4 @@ class VQVAE(nn.Module):
         ax.plot(train_res_perplexity_smooth)
         ax.set_title('Smoothed Average codebook usage (perplexity).')
         ax.set_xlabel('iteration')
-        return f, ax
+        return fig, ax

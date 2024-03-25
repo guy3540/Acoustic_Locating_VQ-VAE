@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as f
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import torch.optim as optim
 import torchvision.datasets as datasets
@@ -12,44 +12,14 @@ import torchvision.transforms as transforms
 from torchvision.utils import make_grid
 
 from VQVAE_class import VQVAE
+from Res_classes import Residual, ResidualStack
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class Residual(nn.Module):
-    def __init__(self, in_channels, num_hiddens, num_residual_hiddens):
-        super(Residual, self).__init__()
-        self._block = nn.Sequential(
-            nn.ReLU(True),
-            nn.Conv2d(in_channels=in_channels,
-                      out_channels=num_residual_hiddens,
-                      kernel_size=3, stride=1, padding=1, bias=False),
-            nn.ReLU(True),
-            nn.Conv2d(in_channels=num_residual_hiddens,
-                      out_channels=num_hiddens,
-                      kernel_size=1, stride=1, bias=False)
-        )
-
-    def forward(self, x):
-        return x + self._block(x)
-
-
-class ResidualStack(nn.Module):
-    def __init__(self, in_channels, num_hiddens, num_residual_layers, num_residual_hiddens):
-        super(ResidualStack, self).__init__()
-        self._num_residual_layers = num_residual_layers
-        self._layers = nn.ModuleList([Residual(in_channels, num_hiddens, num_residual_hiddens)
-                                      for _ in range(self._num_residual_layers)])
-
-    def forward(self, x):
-        for i in range(self._num_residual_layers):
-            x = self._layers[i](x)
-        return f.relu(x)
-
-
-class Encoder(nn.Module):
+class Encoder_Images(nn.Module):
     def __init__(self, in_channels, num_hiddens, num_residual_layers, num_residual_hiddens, embedding_dim):
-        super(Encoder, self).__init__()
+        super(Encoder_Images, self).__init__()
 
         self._conv_1 = nn.Conv2d(in_channels=in_channels,
                                  out_channels=num_hiddens // 2,
@@ -74,19 +44,19 @@ class Encoder(nn.Module):
 
     def forward(self, inputs):
         x = self._conv_1(inputs)
-        x = f.relu(x)
+        x = F.relu(x)
 
         x = self._conv_2(x)
-        x = f.relu(x)
+        x = F.relu(x)
 
         x = self._conv_3(x)
         x = self._residual_stack(x)
         return self._pre_vq(x)
 
 
-class Decoder(nn.Module):
+class Decoder_Images(nn.Module):
     def __init__(self, in_channels, num_hiddens, num_residual_layers, num_residual_hiddens):
-        super(Decoder, self).__init__()
+        super(Decoder_Images, self).__init__()
 
         self._conv_1 = nn.Conv2d(in_channels=in_channels,
                                  out_channels=num_hiddens,
@@ -114,7 +84,7 @@ class Decoder(nn.Module):
         x = self._residual_stack(x)
 
         x = self._conv_trans_1(x)
-        x = f.relu(x)
+        x = F.relu(x)
 
         return self._conv_trans_2(x)
 
@@ -172,10 +142,10 @@ def main():
     training_loader = DataLoader(training_data, batch_size=batch_size, shuffle=True, pin_memory=True)
     validation_loader = DataLoader(validation_data, batch_size=32, shuffle=True, pin_memory=True)
 
-    encoder = Encoder(in_channels=3, num_hiddens=num_hiddens, num_residual_layers=num_residual_layers,
+    encoder = Encoder_Images(in_channels=3, num_hiddens=num_hiddens, num_residual_layers=num_residual_layers,
                       num_residual_hiddens=num_residual_hiddens, embedding_dim=embedding_dim)
 
-    decoder = Decoder(in_channels=embedding_dim, num_hiddens=num_hiddens,
+    decoder = Decoder_Images(in_channels=embedding_dim, num_hiddens=num_hiddens,
                       num_residual_layers=num_residual_layers, num_residual_hiddens=num_residual_hiddens)
 
     model = VQVAE(encoder=encoder, decoder=decoder, num_embeddings=num_embeddings, embedding_dim=embedding_dim,
