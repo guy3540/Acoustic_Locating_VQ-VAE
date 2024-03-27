@@ -48,7 +48,7 @@ class ConvolutionalVQVAE(nn.Module):
             in_channels=configuration['input_features_dim'],
             num_hiddens=configuration['num_hiddens'],
             num_residual_layers=configuration['num_residual_layers'],
-            num_residual_hiddens=configuration['num_hiddens'],
+            num_residual_hiddens=configuration['num_residual_hiddens'],
             sampling_rate=configuration['sampling_rate'],
         )
 
@@ -59,28 +59,19 @@ class ConvolutionalVQVAE(nn.Module):
             padding=1
         )
 
-        if configuration['decay'] > 0.0:
-            self._vq = VectorQuantizerEMA(
-                num_embeddings=configuration['num_embeddings'],
-                embedding_dim=configuration['embedding_dim'],
-                commitment_cost=configuration['commitment_cost'],
-                decay=configuration['decay'],
-                device=device
-            )
-        else:
-            self._vq = VectorQuantizer(
-                num_embeddings=configuration['num_embeddings'],
-                embedding_dim=configuration['embedding_dim'],
-                commitment_cost=configuration['commitment_cost'],
-                device=device
-            )
+        self._vq = VectorQuantizer(
+            num_embeddings=configuration['num_embeddings'],
+            embedding_dim=configuration['embedding_dim'],
+            commitment_cost=configuration['commitment_cost'],
+            device=device
+        )
 
         self._decoder = DeconvolutionalDecoder(
             in_channels=configuration['embedding_dim'],
             out_channels=configuration['input_features_dim'],
             num_hiddens=configuration['num_hiddens'],
             num_residual_layers=configuration['num_residual_layers'],
-            num_residual_hiddens=configuration['residual_channels'],
+            num_residual_hiddens=configuration['num_residual_hiddens'],
             use_jitter=configuration['use_jitter'],
             jitter_probability=configuration['jitter_probability'],
             use_speaker_conditioning=configuration['use_speaker_conditioning'],
