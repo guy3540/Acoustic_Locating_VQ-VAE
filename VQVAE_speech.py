@@ -127,8 +127,8 @@ def main():
     num_residual_hiddens = 20
     num_residual_layers = 10
     embedding_dim = 40
-    num_embeddings = 256
-    num_training_updates = 5000
+    num_embeddings = 1024
+    num_training_updates = 150000
     commitment_cost = 0.25
     learning_rate = 1e-3
     num_f = 80
@@ -162,6 +162,9 @@ def main():
     plt.show()
 
     view_reconstructions(model, test_loader, fs)
+
+    torch.save(model.state_dict(), './models/model_st.pt')
+    torch.save(model, './models/model.pt')
 
 
 if __name__ == "__main__":
