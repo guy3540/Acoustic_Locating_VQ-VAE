@@ -17,46 +17,39 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DATASET_PATH = os.path.join(os.getcwd(), "data")
 BATHC_SIZE = 1
 LR = 4e-4  # as is in the speach article
-NFFT = 512
+SAMPELING_RATE = 16e3
+NFFT = int(SAMPELING_RATE*0.025)
 IN_FEACHER_SIZE = int((NFFT/2) + 1)
+HOP_LENGTH=int(SAMPELING_RATE * 0.01)
 
 configuration = {}
 
 # CONV VQVAE
 configuration['augment_output_features'] = True
 configuration['output_features_dim'] = IN_FEACHER_SIZE
-configuration['decay'] = 0.0
 #
 # #CONV ENC
-configuration['num_hiddens'] = 768
+configuration['num_hiddens'] = 40
 configuration['input_features_dim'] = IN_FEACHER_SIZE
-configuration['num_residual_layers'] = 2
-configuration['use_kaiming_normal'] = False  #todo remove this for we dont know what this is
-configuration['augment_input_features'] = True
+configuration['num_residual_layers'] = 10
+configuration['num_residual_hiddens'] = 20
 configuration['sampling_rate'] = 16000
 #
 # #PRE_VQ_CON
-# configuration['num_hiddens']
-configuration['embedding_dim'] = 64
+configuration['embedding_dim'] = 40
 #
 # #VQ
-configuration['num_embeddings'] = 512  # The higher this value, the higher the capacity in the information bottleneck.
-# configuration['embedding_dim']
+configuration['num_embeddings'] = 1024  # The higher this value, the higher the capacity in the information bottleneck.
 configuration['commitment_cost'] = 0.25  # as recommended in VQ VAE article
 #
 #
 # #CONV DECODER
-# configuration['embedding_dim']
-# out_channels = self._output_features_filters,
-# configuration['num_hiddens']
-# configuration['num_residual_layers']
-configuration['residual_channels'] = 768
-# configuration['use_kaiming_normal']
+configuration['residual_channels'] = 20
 configuration['use_jitter'] = True
 configuration['jitter_probability'] = 0.12
 configuration['use_speaker_conditioning'] = False
 
-audio_transformer = torchaudio.transforms.Spectrogram(n_fft=NFFT)
+audio_transformer = torchaudio.transforms.Spectrogram(n_fft=NFFT, hop_length=HOP_LENGTH)
 
 
 def data_preprocessing(data):
