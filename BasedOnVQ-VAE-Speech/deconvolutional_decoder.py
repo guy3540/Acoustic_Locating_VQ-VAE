@@ -38,13 +38,12 @@ class DeconvolutionalDecoder(nn.Module):
     
     def __init__(self, in_channels, out_channels, num_hiddens, num_residual_layers,
         num_residual_hiddens, use_jitter, jitter_probability,
-        use_speaker_conditioning, device):
+        use_speaker_conditioning):
 
         super(DeconvolutionalDecoder, self).__init__()
 
         self._use_jitter = use_jitter
         self._use_speaker_conditioning = use_speaker_conditioning
-        self._device = device
 
         if self._use_jitter:
             self._jitter = Jitter(jitter_probability)
