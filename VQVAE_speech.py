@@ -94,12 +94,11 @@ def view_reconstructions(model: VQVAE, dataloader: DataLoader, fs):
     axes[0].set(title='Mel-frequency spectrogram')
 
     img2 = librosa.display.specshow(reconstructions.squeeze(), x_axis='time',
-                                   y_axis='mel', sr=fs,
-                                   fmax=8000, ax=axes[1])
+                                    y_axis='mel', sr=fs,
+                                    fmax=8000, ax=axes[1])
 
     fig.colorbar(img2, ax=axes[1], format='%+2.0f dB')
     axes[1].set(title='Mel-frequency spectrogram')
-
 
     plt.show()
 
@@ -116,6 +115,10 @@ def data_preprocessing(waveform, sample_rate):
         norm=None,
         power=1.0
     )
+
+    if mel_spec.shape[2] % 2:
+        mel_spec = mel_spec[:, :, :-1]
+
     return torch.from_numpy(mel_spec), None  # For compatibility with images
 
 
@@ -133,13 +136,14 @@ def main():
     learning_rate = 1e-3
     num_f = 80
 
-    training_data = torchaudio.datasets.LIBRISPEECH(dataset_path, url='dev-clean', download=True)
-    train_loader = DataLoader(training_data, batch_size=batch_size, shuffle=True,
-                              collate_fn=lambda x: data_preprocessing(x[0], fs))
+    training_data = torchaudio.datasets.LIBRISPEECH(dataset_path, url='train-clean-100', download=True)
 
-    test_data = torchaudio.datasets.LIBRISPEECH(dataset_path, url='test-clean', download=True)
-    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True,
-                             collate_fn=lambda x: data_preprocessing(x[0], fs))
+    train_set, val_set = torch.utils.data.random_split(training_data, [0.9, 0.1])
+
+    train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True,
+                              collate_fn=lambda x: data_preprocessing(x[0], fs))
+    val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=True,
+                            collate_fn=lambda x: data_preprocessing(x[0], fs))
 
     data_variance = 1
 
@@ -155,13 +159,13 @@ def main():
 
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, amsgrad=False)
 
-    model.train_on_data(optimizer, train_loader, num_training_updates, data_variance)
+    model.train_on_data(optimizer, train_loader, num_training_updates, data_variance, val_loader)
 
     model.plot_losses()
 
     plt.show()
 
-    view_reconstructions(model, test_loader, fs)
+    view_reconstructions(model, val_loader, fs)
 
     torch.save(model.state_dict(), './models/model_st.pt')
     torch.save(model, './models/model.pt')
