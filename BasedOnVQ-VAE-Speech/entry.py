@@ -192,10 +192,11 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
     plt.show()
     torch.save(model, 'model.pt')
 
+if __name__ == '__main__':
 
-model = ConvolutionalVQVAE(in_channels, num_hiddens, embedding_dim, num_residual_layers, num_residual_hiddens,
-                           commitment_cost, num_embeddings).to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=LR, amsgrad=False)
-train(model=model, optimizer=optimizer, num_training_updates=15000)
-# model.train_on_data(optimizer,train_loader,num_training_updates=15000, data_variance=1)
-print("init")
+    model = ConvolutionalVQVAE(in_channels, num_hiddens, embedding_dim, num_residual_layers, num_residual_hiddens,
+                               commitment_cost, num_embeddings).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=LR, amsgrad=False)
+    train(model=model, optimizer=optimizer, num_training_updates=15000)
+    # model.train_on_data(optimizer,train_loader,num_training_updates=15000, data_variance=1)
+    print("init")
