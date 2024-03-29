@@ -84,7 +84,8 @@ class VQVAE(nn.Module):
         x_recon = self.decode(quantized)
         return loss, x_recon, perplexity
 
-    def train_on_data(self, optimizer: optim, dataloader: DataLoader, num_training_updates, data_variance):
+    def train_on_data(self, optimizer: optim, dataloader: DataLoader, num_training_updates, data_variance,
+                      val_loader):
         self.train()
         train_res_recon_error = []
         train_res_perplexity = []
@@ -98,10 +99,7 @@ class VQVAE(nn.Module):
             optimizer.zero_grad()
 
             vq_loss, data_recon, perplexity = self(inputs)
-            if not inputs.shape == data_recon.shape:
-                recon_error = F.mse_loss(data_recon, inputs[:, :, :-1]) / data_variance
-            else:
-                recon_error = F.mse_loss(data_recon, inputs) / data_variance
+            recon_error = F.mse_loss(data_recon, inputs) / data_variance
             loss = recon_error + vq_loss
             loss.backward()
 
@@ -111,10 +109,21 @@ class VQVAE(nn.Module):
             train_res_perplexity.append(perplexity.item())
 
             if (i+1) % 100 == 0:
+                with torch.no_grad():
+                    self.eval()
+                    (val_inputs, _) = next(iter(val_loader))
+                    val_inputs = val_inputs.to(device)
+                    vq_loss, data_recon, perplexity = self(val_inputs)
+                    recon_error = F.mse_loss(data_recon, val_inputs) / data_variance
+                    loss = recon_error + vq_loss
+
+
                 print('%d iterations' % (i + 1))
-                print('recon_error: %.3f' % np.mean(train_res_recon_error[-100:]))
-                print('perplexity: %.3f' % np.mean(train_res_perplexity[-100:]))
+                print('train recon_error: %.3f' % np.mean(train_res_recon_error[-100:]))
+                print('train perplexity: %.3f' % np.mean(train_res_perplexity[-100:]))
+                print('validation example recon_error: %.3f' % loss)
                 print()
+                self.train()
 
         self.train_res_recon_error = train_res_recon_error
         self.train_res_perplexity = train_res_perplexity

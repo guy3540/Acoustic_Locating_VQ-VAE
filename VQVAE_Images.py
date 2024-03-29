@@ -153,7 +153,7 @@ def main():
 
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, amsgrad=False)
 
-    model.train_on_data(optimizer, training_loader, num_training_updates, data_variance)
+    model.train_on_data(optimizer, training_loader, num_training_updates, data_variance, validation_loader)
 
     model.plot_losses()
 
