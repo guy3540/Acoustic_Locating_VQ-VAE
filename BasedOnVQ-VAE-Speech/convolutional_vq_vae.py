@@ -44,7 +44,7 @@ import os
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class ConvolutionalVQVAE(nn.Module):
 
-    def __init__(self,in_channels, num_hiddens,embedding_dim,num_residual_layers,num_residual_hiddens,commitment_cost, num_embeddings):
+    def __init__(self,in_channels, num_hiddens,embedding_dim,num_residual_layers,num_residual_hiddens,commitment_cost, num_embeddings, use_jitter=True):
         super(ConvolutionalVQVAE, self).__init__()
         # self._encoder = SpeechEncoder(in_channels, num_hiddens, num_residual_layers, num_residual_hiddens, embedding_dim)
 
@@ -73,7 +73,7 @@ class ConvolutionalVQVAE(nn.Module):
             num_hiddens=num_hiddens,
             num_residual_layers=num_residual_layers,
             num_residual_hiddens=num_residual_hiddens,
-            use_jitter=True,
+            use_jitter=use_jitter,
             jitter_probability=0.25,
             use_speaker_conditioning=False,
         )
