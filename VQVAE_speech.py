@@ -103,35 +103,46 @@ def view_reconstructions(model: VQVAE, dataloader: DataLoader, fs):
     plt.show()
 
 
-def data_preprocessing(waveform, sample_rate):
-    # Convert waveform to spectrogram
-    # Extract log Mel-filterbanks
-    mel_spec = librosa.feature.melspectrogram(
-        y=waveform[0].numpy(),
-        sr=sample_rate,
-        n_fft=int(sample_rate * 0.025),  # window size of 25 ms
-        hop_length=int(sample_rate * 0.01),  # step size of 10 ms
-        n_mels=80,
-        norm=None,
-        power=1.0
-    )
+def data_preprocessing(data, sample_rate):
+    spectrograms = []
+    min_size = float("inf")
+    for (waveform, sample_rate, _, _, _, _) in data:
+        # Convert waveform to spectrogram
+        # Extract log Mel-filterbanks
+        mel_spec = librosa.feature.melspectrogram(
+            y=waveform.numpy(),
+            sr=sample_rate,
+            n_fft=int(sample_rate * 0.025),  # window size of 25 ms
+            hop_length=int(sample_rate * 0.01),  # step size of 10 ms
+            n_mels=80,
+            norm=None,
+            power=1.0
+        )
+        min_size = min(min_size, mel_spec.shape[2])
+        spectrograms.append(mel_spec)
 
-    if mel_spec.shape[2] % 2:
-        mel_spec = mel_spec[:, :, :-1]
+    if min_size % 2:
+        min_size = min_size - 1
 
-    return torch.from_numpy(mel_spec), None  # For compatibility with images
+    spectrograms = [torch.from_numpy(spec[:, :, :min_size]).squeeze() for spec in spectrograms]
+    spectrograms = torch.stack(spectrograms, 0)
+
+    return spectrograms, None  # For compatibility with images
 
 
 def main():
     dataset_path = os.path.join(os.getcwd(), "data")
-    batch_size = 1
+    batch_size = 20
+    val_batch_size = 1
+    print_every_n_batches = 1
+    n_val_samples_for_eval = 10
     fs = 16e3
     num_hiddens = 40
     num_residual_hiddens = 20
     num_residual_layers = 10
     embedding_dim = 40
     num_embeddings = 1024
-    num_training_updates = 300000
+    num_training_updates = 10
     commitment_cost = 0.25
     learning_rate = 1e-3
     num_f = 80
@@ -141,9 +152,9 @@ def main():
     train_set, val_set = torch.utils.data.random_split(training_data, [0.9, 0.1])
 
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True,
-                              collate_fn=lambda x: data_preprocessing(x[0], fs))
-    val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=True,
-                            collate_fn=lambda x: data_preprocessing(x[0], fs))
+                              collate_fn=lambda x: data_preprocessing(x, fs))
+    val_loader = DataLoader(val_set, batch_size=1, shuffle=True,
+                            collate_fn=lambda x: data_preprocessing(x, fs))
 
     data_variance = 1
 
@@ -159,7 +170,8 @@ def main():
 
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, amsgrad=False)
 
-    model.train_on_data(optimizer, train_loader, num_training_updates, data_variance, val_loader)
+    model.train_on_data(optimizer, train_loader, num_training_updates, data_variance, val_loader,
+                        print_every_n_batches, n_val_samples_for_eval)
 
     model.plot_losses()
     plt.show()

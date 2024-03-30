@@ -86,7 +86,7 @@ class VQVAE(nn.Module):
         return loss, x_recon, perplexity
 
     def train_on_data(self, optimizer: optim, dataloader: DataLoader, num_training_updates, data_variance,
-                      val_loader):
+                      val_loader, print_every_n_batches=1, n_val_samples_for_eval=10):
         self.train()
         train_res_recon_error = []
         train_res_perplexity = []
@@ -110,7 +110,7 @@ class VQVAE(nn.Module):
             train_res_recon_error.append(recon_error.item())
             train_res_perplexity.append(perplexity.item())
 
-            if (i+1) % 100 == 0:
+            if (i+1) % print_every_n_batches == 0:
                 with torch.no_grad():
                     self.eval()
                     loss = 0
@@ -124,7 +124,7 @@ class VQVAE(nn.Module):
                     train_error_on_val_example.append(loss.item())
 
 
-                print('%d iterations' % (i + 1))
+                print('%d batches' % (i + 1))
                 print('train recon_error: %.3f' % np.mean(train_res_recon_error[-100:]))
                 print('train perplexity: %.3f' % np.mean(train_res_perplexity[-100:]))
                 print('validation examples recon_error: %.3f' % loss.item())
@@ -134,6 +134,7 @@ class VQVAE(nn.Module):
         self.train_res_recon_error = train_res_recon_error
         self.train_res_perplexity = train_res_perplexity
         self.train_error_on_val_example = train_error_on_val_example
+        self.print_every_n_batches = print_every_n_batches
 
     def plot_losses(self):
         if not self.train_res_recon_error:  # Return if is empty
@@ -155,7 +156,7 @@ class VQVAE(nn.Module):
         ax.set_xlabel('iteration')
 
         ax = axs[2]
-        iter_grid = [100 * (i + 1) for i in range(len(train_error_on_val_example_smooth))]
+        iter_grid = [self.print_every_n_batches*(i + 1) for i in range(len(train_error_on_val_example_smooth))]
         ax.plot(iter_grid, train_error_on_val_example_smooth)
         ax.set_title('Smoothed loss on an example from validation set')
         ax.set_xlabel('iteration')
