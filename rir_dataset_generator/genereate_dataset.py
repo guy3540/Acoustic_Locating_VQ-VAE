@@ -74,9 +74,3 @@ for j in range(DATASET_SIZE):
     scaled = np.int16(signal / np.max(np.abs(signal)) * 32767)
     write(os.path.join(DATASET_PATH,filename), int(fs), scaled)
 
-# print(signal.shape)         # (11462, 2)
-#
-# # Convolve 2-channel signal with 3 impulse responses
-
-#
-# print(signal.shape)         # (15557, 2, 3)
