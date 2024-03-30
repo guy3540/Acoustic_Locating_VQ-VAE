@@ -66,11 +66,11 @@ for i, (i_x, i_y) in enumerate(zip(positions_x, positions_y)):
 res = list(zip(H, positions_x, positions_y, np.ones(len(positions_x), dtype=float)))
 for j in range(DATASET_SIZE):
     print(f'Generating {j}')
-    h,positions_x, positions_y, positions_z = random.sample(res, k=1)[0]
-    noise = np.random.normal(0, 1, size=nsample)
+    h, i_x, i_y, i_z = random.sample(res, k=1)[0]
+    noise = np.random.normal(0, 1, size=nsample*7)
     signal = ss.convolve(h, np.expand_dims(noise, 1))
 
-    filename = f'rir_R_{room_dimentions[0]}_{room_dimentions[1]}_{room_dimentions[2]}_M_{reciver_position[0]}_{reciver_position[1]}_{reciver_position[2]}_S_{i_x:.1f}_{i_y:.1f}_{positions_z:.1f}_{j}.wav'
+    filename = f'rir_R_{room_dimentions[0]}_{room_dimentions[1]}_{room_dimentions[2]}_M_{reciver_position[0]}_{reciver_position[1]}_{reciver_position[2]}_S_{i_x:.1f}_{i_y:.1f}_{i_z:.1f}_{j}.wav'
     scaled = np.int16(signal / np.max(np.abs(signal)) * 32767)
     write(os.path.join(DATASET_PATH,filename), int(fs), scaled)
 
