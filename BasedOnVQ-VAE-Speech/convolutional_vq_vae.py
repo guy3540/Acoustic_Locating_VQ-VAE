@@ -1,4 +1,9 @@
- #####################################################################################
+import numpy as np
+from torch import optim
+from torch.utils.data import DataLoader
+from six.moves import xrange
+from VQVAE_speech import \
+    SpeechEncoder, SpeechDecoder  #####################################################################################
  # MIT License                                                                       #
  #                                                                                   #
  # Copyright (C) 2019 Charly Lamothe                                                 #
@@ -30,87 +35,85 @@ from vector_quantizer import VectorQuantizer
 from vector_quantizer_ema import VectorQuantizerEMA
 # from error_handling.console_logger import ConsoleLogger
 
+
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
 import os
 
-
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class ConvolutionalVQVAE(nn.Module):
 
-    def __init__(self, configuration, device):
+    def __init__(self,in_channels, num_hiddens,embedding_dim,num_residual_layers,num_residual_hiddens,commitment_cost, num_embeddings):
         super(ConvolutionalVQVAE, self).__init__()
-
-        # self._output_features_filters = configuration['output_features_filters'] * 3 if configuration['augment_output_features'] else configuration['output_features_filters']
-        self._output_features_dim = configuration['output_features_dim']
+        # self._encoder = SpeechEncoder(in_channels, num_hiddens, num_residual_layers, num_residual_hiddens, embedding_dim)
 
         self._encoder = ConvolutionalEncoder(
-            in_channels=configuration['input_features_dim'],
-            num_hiddens=configuration['num_hiddens'],
-            num_residual_layers=configuration['num_residual_layers'],
-            num_residual_hiddens=configuration['num_residual_hiddens'],
-            sampling_rate=configuration['sampling_rate'],
+            in_channels=in_channels,
+            num_hiddens=num_hiddens,
+            num_residual_layers=num_residual_layers,
+            num_residual_hiddens=num_residual_hiddens,
         )
-
         self._pre_vq_conv = nn.Conv1d(
-            in_channels=configuration['num_hiddens'],
-            out_channels=configuration['embedding_dim'],
+            in_channels=num_hiddens,
+            out_channels=embedding_dim,
             kernel_size=3,
             padding=1
         )
 
         self._vq = VectorQuantizer(
-            num_embeddings=configuration['num_embeddings'],
-            embedding_dim=configuration['embedding_dim'],
-            commitment_cost=configuration['commitment_cost'],
-            device=device
+            num_embeddings=num_embeddings,
+            embedding_dim=embedding_dim,
+            commitment_cost=commitment_cost,
         )
-
+        # self._decoder = SpeechDecoder(embedding_dim, num_hiddens, num_residual_layers, num_residual_hiddens, in_channels)
         self._decoder = DeconvolutionalDecoder(
-            in_channels=configuration['embedding_dim'],
-            out_channels=configuration['input_features_dim'],
-            num_hiddens=configuration['num_hiddens'],
-            num_residual_layers=configuration['num_residual_layers'],
-            num_residual_hiddens=configuration['num_residual_hiddens'],
-            use_jitter=configuration['use_jitter'],
-            jitter_probability=configuration['jitter_probability'],
-            use_speaker_conditioning=configuration['use_speaker_conditioning'],
-            device=device,
+            in_channels=embedding_dim,
+            out_channels=in_channels,
+            num_hiddens=num_hiddens,
+            num_residual_layers=num_residual_layers,
+            num_residual_hiddens=num_residual_hiddens,
+            use_jitter=True,
+            jitter_probability=0.25,
+            use_speaker_conditioning=False,
         )
+    def train_on_data(self, optimizer: optim, dataloader: DataLoader, num_training_updates, data_variance):
+        self.train()
+        train_res_recon_error = []
+        train_res_perplexity = []
 
-        self._device = device
+        inputs: torch.Tensor
+        labels: torch.Tensor
 
+        for i in xrange(num_training_updates):
+            (inputs,_) = next(iter(dataloader))
+            inputs = inputs.to(device)
+            optimizer.zero_grad()
 
-    @property
-    def vq(self):
-        return self._vq
+            vq_loss, data_recon, perplexity = self(inputs)
+            if not inputs.shape == data_recon.shape:
+                recon_error = F.mse_loss(data_recon, inputs[:, :, :-1]) / data_variance
+            else:
+                recon_error = F.mse_loss(data_recon, inputs) / data_variance
+            loss = recon_error + vq_loss
+            loss.backward()
 
-    @property
-    def pre_vq_conv(self):
-        return self._pre_vq_conv
+            optimizer.step()
 
-    @property
-    def encoder(self):
-        return self._encoder
+            train_res_recon_error.append(recon_error.item())
+            train_res_perplexity.append(perplexity.item())
 
-    @property
-    def decoder(self):
-        return self._decoder
+            if (i+1) % 100 == 0:
+                print('%d iterations' % (i + 1))
+                print('recon_error: %.3f' % np.mean(train_res_recon_error[-100:]))
+                print('perplexity: %.3f' % np.mean(train_res_perplexity[-100:]))
+                print()
 
-    def forward(self, x, speaker_dic=None, speaker_id=None):
-        # x = x.permute(0, 2, 1).contiguous().float()
-
+        self.train_res_recon_error = train_res_recon_error
+        self.train_res_perplexity = train_res_perplexity
+    def forward(self, x):
         z = self._encoder(x)
         z = self._pre_vq_conv(z)
-
-        vq_loss, quantized, perplexity, _,  = self._vq(z)
-
-        reconstructed_x = self._decoder(quantized, speaker_dic, speaker_id)
-
-        input_features_size = x.size(2)
-        output_features_size = reconstructed_x.size(2)
-
-        reconstructed_x = reconstructed_x.view(-1, self._output_features_dim, output_features_size)
-        reconstructed_x = reconstructed_x[:, :, :-(output_features_size-input_features_size)]
-        
-        return reconstructed_x, vq_loss, perplexity
+        loss, quantized, perplexity, _ = self._vq(z)
+        x_recon = self._decoder(quantized)
+        return loss, x_recon, perplexity

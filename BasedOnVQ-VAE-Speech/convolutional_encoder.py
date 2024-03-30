@@ -33,8 +33,7 @@ import torch.nn.functional as F
 
 class ConvolutionalEncoder(nn.Module):
     
-    def __init__(self, in_channels, num_hiddens, num_residual_layers, num_residual_hiddens,
-        sampling_rate, verbose=False):
+    def __init__(self, in_channels, num_hiddens, num_residual_layers, num_residual_hiddens, verbose=False):
 
         super(ConvolutionalEncoder, self).__init__()
 
@@ -105,7 +104,6 @@ class ConvolutionalEncoder(nn.Module):
             num_residual_hiddens=num_residual_hiddens
         )
 
-        self._sampling_rate = sampling_rate
         self._verbose = verbose
 
     def forward(self, inputs):
