@@ -16,11 +16,10 @@ from convolutional_vq_vae import ConvolutionalVQVAE
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DATASET_PATH = r"C:\Users\reiem\PycharmProjects\Acoustic_Locating_VQ-VAE\rir_dataset_generator\rir_dataset"
 BATHC_SIZE = 1
-LR = 1e-3  # as is in the speach article
+LR = 1e-3
 SAMPLING_RATE = 16e3
 NFFT = int(SAMPLING_RATE * 0.025)
 IN_FEACHER_SIZE = int((NFFT / 2) + 1)
-# IN_FEACHER_SIZE = 80
 HOP_LENGTH = int(SAMPLING_RATE * 0.01)
 
 # CONV VQVAE
@@ -32,7 +31,7 @@ num_residual_hiddens = 20
 embedding_dim = 3
 num_embeddings = 5  # The higher this value, the higher the capacity in the information bottleneck.
 commitment_cost = 0.25  # as recommended in VQ VAE article
-use_jitter = True
+use_jitter = False
 jitter_probability = 0.12
 use_speaker_conditioning = False
 
@@ -138,7 +137,7 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
             print('recon_error: %.3f' % np.mean(train_res_recon_error[-100:]))
             print('perplexity: %.3f' % np.mean(train_res_perplexity[-100:]))
             print()
-        if (i + 1) % 100 == 0:
+        if (i + 1) % 500 == 0:
             fig, (ax1, ax2) = plt.subplots(1, 2)
             plot_spectrogram(x[0].detach().to('cpu'), title="Spectrogram - input", ylabel="freq", ax=ax1)
             plot_spectrogram(reconstructed_x[0].detach().to('cpu'), title="Spectrogram - reconstructed", ylabel="freq",
@@ -165,7 +164,7 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
 if __name__ == '__main__':
 
     model = ConvolutionalVQVAE(in_channels, num_hiddens, embedding_dim, num_residual_layers, num_residual_hiddens,
-                               commitment_cost, num_embeddings).to(device)
+                               commitment_cost, num_embeddings, use_jitter=use_jitter).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, amsgrad=False)
     train(model=model, optimizer=optimizer, num_training_updates=15000)
     # model.train_on_data(optimizer,train_loader,num_training_updates=15000, data_variance=1)
