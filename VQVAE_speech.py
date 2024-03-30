@@ -131,7 +131,7 @@ def main():
     num_residual_layers = 10
     embedding_dim = 40
     num_embeddings = 1024
-    num_training_updates = 150000
+    num_training_updates = 300000
     commitment_cost = 0.25
     learning_rate = 1e-3
     num_f = 80
@@ -162,13 +162,12 @@ def main():
     model.train_on_data(optimizer, train_loader, num_training_updates, data_variance, val_loader)
 
     model.plot_losses()
-
     plt.show()
 
     view_reconstructions(model, val_loader, fs)
 
-    torch.save(model.state_dict(), './models/model_st.pt')
-    torch.save(model, './models/model.pt')
+    torch.save(model.state_dict(), 'models/model_300k_iters_st.pt')
+    torch.save(model, 'models/model_300k_iters.pt')
 
 
 if __name__ == "__main__":

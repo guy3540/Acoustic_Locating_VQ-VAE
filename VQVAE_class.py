@@ -67,6 +67,7 @@ class VQVAE(nn.Module):
 
         self.train_res_perplexity = []
         self.train_res_recon_error = []
+        self.train_error_on_val_example = []
 
     def encode(self, x):
         return self._encoder(x)
@@ -89,6 +90,7 @@ class VQVAE(nn.Module):
         self.train()
         train_res_recon_error = []
         train_res_perplexity = []
+        train_error_on_val_example = []
 
         inputs: torch.Tensor
         labels: torch.Tensor
@@ -111,37 +113,50 @@ class VQVAE(nn.Module):
             if (i+1) % 100 == 0:
                 with torch.no_grad():
                     self.eval()
-                    (val_inputs, _) = next(iter(val_loader))
-                    val_inputs = val_inputs.to(device)
-                    vq_loss, data_recon, perplexity = self(val_inputs)
-                    recon_error = F.mse_loss(data_recon, val_inputs) / data_variance
-                    loss = recon_error + vq_loss
+                    loss = 0
+                    for ind in range(10):
+                        (val_inputs, _) = next(iter(val_loader))
+                        val_inputs = val_inputs.to(device)
+                        vq_loss, data_recon, perplexity = self(val_inputs)
+                        recon_error = F.mse_loss(data_recon, val_inputs) / data_variance
+                        loss += recon_error + vq_loss
+                    loss = loss/10
+                    train_error_on_val_example.append(loss.item())
 
 
                 print('%d iterations' % (i + 1))
                 print('train recon_error: %.3f' % np.mean(train_res_recon_error[-100:]))
                 print('train perplexity: %.3f' % np.mean(train_res_perplexity[-100:]))
-                print('validation example recon_error: %.3f' % loss)
+                print('validation examples recon_error: %.3f' % loss.item())
                 print()
                 self.train()
 
         self.train_res_recon_error = train_res_recon_error
         self.train_res_perplexity = train_res_perplexity
+        self.train_error_on_val_example = train_error_on_val_example
 
     def plot_losses(self):
         if not self.train_res_recon_error:  # Return if is empty
             return [], []
         train_res_recon_error_smooth = savgol_filter(self.train_res_recon_error, len(self.train_res_recon_error), 7)
         train_res_perplexity_smooth = savgol_filter(self.train_res_perplexity, len(self.train_res_perplexity), 7)
-        fig = plt.figure(figsize=(16, 8))
-        ax = fig.add_subplot(1, 2, 1)
+        train_error_on_val_example_smooth = savgol_filter(self.train_error_on_val_example,
+                                                          len(self.train_error_on_val_example), 1)
+        fig, axs = plt.subplots(3, 1, sharex=True)
+        ax = axs[0]
         ax.plot(train_res_recon_error_smooth)
         ax.set_yscale('log')
         ax.set_title('Smoothed Normalized MSE.')
         ax.set_xlabel('iteration')
 
-        ax = fig.add_subplot(1, 2, 2)
+        ax = axs[1]
         ax.plot(train_res_perplexity_smooth)
         ax.set_title('Smoothed Average codebook usage (perplexity).')
+        ax.set_xlabel('iteration')
+
+        ax = axs[2]
+        iter_grid = [100 * (i + 1) for i in range(len(train_error_on_val_example_smooth))]
+        ax.plot(iter_grid, train_error_on_val_example_smooth)
+        ax.set_title('Smoothed loss on an example from validation set')
         ax.set_xlabel('iteration')
         return fig, ax
