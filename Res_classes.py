@@ -43,11 +43,11 @@ class Conv1DResidualModel(nn.Module):
 
         # Define convolutional layers
         self.conv_layers = nn.ModuleList(
-            [nn.Conv1d(in_channels=hidden_size, out_channels=hidden_size, kernel_size=3, padding=1)
+            [nn.Conv2d(in_channels=hidden_size, out_channels=hidden_size, kernel_size=3, padding=1)
              for _ in range(num_layers)])
         self.relu = nn.ReLU()
 
-        self.conv_end = nn.Conv1d(in_channels=hidden_size, out_channels=output_size, kernel_size=3, padding=1)
+        self.conv_end = nn.Conv2d(in_channels=hidden_size, out_channels=output_size, kernel_size=3, padding=1)
 
     def forward(self, x):
         # Apply initial convolutional layer
@@ -63,7 +63,7 @@ class Conv1DResidualModel(nn.Module):
 
             # Apply time stride of 2 in the 3rd layer
             if i == 2:
-                out = F.max_pool1d(out, kernel_size=2, stride=2)
+                out = F.max_pool2d(out, kernel_size=2, stride=(2, 2), padding=(0, 1))
 
         return self.conv_end(out)
 

@@ -33,8 +33,8 @@ class SpeechEncoder(nn.Module):
 
         self._conv_1 = nn.Conv2d(in_channels=in_channels,
                                  out_channels=num_hiddens,
-                                 kernel_size=(3, 2),
-                                 stride=1, padding=(1, 0))
+                                 kernel_size=(3, 3),
+                                 stride=1, padding=(1, 1))
 
         self._residual_stack_1 = Conv1DResidualModel(num_hiddens, num_residual_layers, num_hiddens, embedding_dim)
 
@@ -49,7 +49,7 @@ class SpeechDecoder(nn.Module):
 
         self._conv_1 = nn.Conv2d(in_channels=in_channels,
                                  out_channels=num_hiddens,
-                                 kernel_size=(3, 2),
+                                 kernel_size=(3, 3),
                                  stride=1, padding=(1, 1))
 
         self._residual_stack = ResidualStack(in_channels=num_hiddens,
@@ -63,7 +63,7 @@ class SpeechDecoder(nn.Module):
                                                 stride=(2, 1), padding=(1, 0))
 
     def forward(self, inputs):
-        x = self._conv_1(inputs.unsqueeze(-1))
+        x = self._conv_1(inputs)
         x = self._residual_stack(x)
         return self._conv_trans_2(x)
 
@@ -131,9 +131,9 @@ def data_preprocessing(data, transform):
 def main():
     model_name = "test"
     dataset_path = os.path.join(os.getcwd(), "data")
-    batch_size = 1
+    batch_size = 15
     val_batch_size = 1
-    print_every_n_batches = 100
+    print_every_n_batches = 1
     n_val_samples_for_eval = val_batch_size
     fs = 16e3
     num_hiddens = 100
@@ -141,7 +141,7 @@ def main():
     num_residual_layers = 10
     embedding_dim = 128
     num_embeddings = 256
-    num_training_updates = 50000
+    num_training_updates = 1000
     commitment_cost = 0.25
     learning_rate = 1e-3
 
