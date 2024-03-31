@@ -101,7 +101,9 @@ class VQVAE(nn.Module):
             optimizer.zero_grad()
 
             vq_loss, data_recon, perplexity = self(inputs)
-            recon_error = F.mse_loss(data_recon, inputs) / data_variance
+            if not data_recon.shape == inputs.shape:
+                data_recon = data_recon.unsqueeze(0)
+            recon_error = F.mse_loss(data_recon, inputs, reduction='mean') / data_variance
             loss = recon_error + vq_loss
             loss.backward()
 
@@ -114,13 +116,15 @@ class VQVAE(nn.Module):
                 with torch.no_grad():
                     self.eval()
                     loss = 0
-                    for ind in range(10):
+                    for ind in range(n_val_samples_for_eval):
                         (val_inputs, _) = next(iter(val_loader))
                         val_inputs = val_inputs.to(device)
                         vq_loss, data_recon, perplexity = self(val_inputs)
+                        if not data_recon.shape == val_inputs.shape:
+                            data_recon = data_recon.unsqueeze(0)
                         recon_error = F.mse_loss(data_recon, val_inputs) / data_variance
                         loss += recon_error + vq_loss
-                    loss = loss/10
+                    loss = loss/n_val_samples_for_eval
                     train_error_on_val_example.append(loss.item())
 
 
@@ -139,25 +143,25 @@ class VQVAE(nn.Module):
     def plot_losses(self):
         if not self.train_res_recon_error:  # Return if is empty
             return [], []
-        train_res_recon_error_smooth = savgol_filter(self.train_res_recon_error, len(self.train_res_recon_error), 7)
-        train_res_perplexity_smooth = savgol_filter(self.train_res_perplexity, len(self.train_res_perplexity), 7)
-        train_error_on_val_example_smooth = savgol_filter(self.train_error_on_val_example,
-                                                          len(self.train_error_on_val_example), 1)
+        # train_res_recon_error_smooth = savgol_filter(self.train_res_recon_error, len(self.train_res_recon_error), 7)
+        # train_res_perplexity_smooth = savgol_filter(self.train_res_perplexity, len(self.train_res_perplexity), 7)
+        # train_error_on_val_example_smooth = savgol_filter(self.train_error_on_val_example,
+        #                                                   len(self.train_error_on_val_example), 7)
         fig, axs = plt.subplots(3, 1, sharex=True)
         ax = axs[0]
-        ax.plot(train_res_recon_error_smooth)
+        ax.plot(self.train_res_recon_error)
         ax.set_yscale('log')
         ax.set_title('Smoothed Normalized MSE.')
         ax.set_xlabel('iteration')
 
         ax = axs[1]
-        ax.plot(train_res_perplexity_smooth)
+        ax.plot(self.train_res_perplexity)
         ax.set_title('Smoothed Average codebook usage (perplexity).')
         ax.set_xlabel('iteration')
 
         ax = axs[2]
-        iter_grid = [self.print_every_n_batches*(i + 1) for i in range(len(train_error_on_val_example_smooth))]
-        ax.plot(iter_grid, train_error_on_val_example_smooth)
+        iter_grid = [self.print_every_n_batches*(i + 1) for i in range(len(self.train_error_on_val_example))]
+        ax.plot(iter_grid, self.train_error_on_val_example)
         ax.set_title('Smoothed loss on an example from validation set')
         ax.set_xlabel('iteration')
         return fig, ax

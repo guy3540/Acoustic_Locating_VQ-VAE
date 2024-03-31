@@ -35,7 +35,7 @@ class ResidualStack(nn.Module):
 
 
 class Conv1DResidualModel(nn.Module):
-    def __init__(self, input_size, num_layers, hidden_size):
+    def __init__(self, input_size, num_layers, hidden_size, output_size):
         super(Conv1DResidualModel, self).__init__()
         self.input_size = input_size
         self.num_layers = num_layers
@@ -43,8 +43,11 @@ class Conv1DResidualModel(nn.Module):
 
         # Define convolutional layers
         self.conv_layers = nn.ModuleList(
-            [nn.Conv1d(hidden_size, hidden_size, kernel_size=3, padding=1) for _ in range(num_layers)])
+            [nn.Conv1d(in_channels=hidden_size, out_channels=hidden_size, kernel_size=3, padding=1)
+             for _ in range(num_layers)])
         self.relu = nn.ReLU()
+
+        self.conv_end = nn.Conv1d(in_channels=hidden_size, out_channels=output_size, kernel_size=3, padding=1)
 
     def forward(self, x):
         # Apply initial convolutional layer
@@ -62,5 +65,5 @@ class Conv1DResidualModel(nn.Module):
             if i == 2:
                 out = F.max_pool1d(out, kernel_size=2, stride=2)
 
-        return out
+        return self.conv_end(out)
 
