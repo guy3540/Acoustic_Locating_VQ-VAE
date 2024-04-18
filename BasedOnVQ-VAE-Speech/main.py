@@ -4,9 +4,7 @@ import numpy as np
 import torch
 import torchaudio
 from scipy.signal import savgol_filter
-from torch import nn
 from torch.utils.data import DataLoader
-import torchaudio.transforms as T
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import librosa
@@ -15,6 +13,8 @@ from six.moves import xrange
 from convolutional_vq_vae import ConvolutionalVQVAE
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
 DATASET_PATH = os.path.join(os.getcwd(), "data")
 BATHC_SIZE = 64
 LR = 1e-3  # as is in the speach article
@@ -23,29 +23,18 @@ NFFT = int(SAMPLING_RATE * 0.025)
 IN_FEACHER_SIZE = int((NFFT / 2) + 1)
 # IN_FEACHER_SIZE = 80
 HOP_LENGTH = int(SAMPLING_RATE * 0.01)
-
-# CONV VQVAE
 output_features_dim = IN_FEACHER_SIZE
-#
-# #CONV ENC
 num_hiddens = 40
 in_channels = IN_FEACHER_SIZE
 num_residual_layers = 10
 num_residual_hiddens = 20
-
-#
-# #PRE_VQ_CON
 embedding_dim = 40
-#
-# #VQ
 num_embeddings = 1024  # The higher this value, the higher the capacity in the information bottleneck.
 commitment_cost = 0.25  # as recommended in VQ VAE article
-#
-#
-# #CONV DECODER
+
 use_jitter = True
 jitter_probability = 0.12
-use_speaker_conditioning = False
+
 
 audio_transformer = torchaudio.transforms.Spectrogram(n_fft=NFFT, hop_length=HOP_LENGTH, power=1, center=True, pad=0, normalized=True)
 # audio_transformer = torchaudio.transforms.MelSpectrogram(n_fft=NFFT, sample_rate=SAMPLING_RATE,hop_length=HOP_LENGTH,n_mels=IN_FEACHER_SIZE)
@@ -95,35 +84,10 @@ def data_preprocessing(data):
         spectrograms.append(spec)
 
     spectrograms = combine_tensors_with_min_dim(spectrograms)
-    # spectrograms = nn.utils.rnn.pad_sequence(spectrograms, batch_first=True).unsqueeze(1).transpose(2, 3)
-    # labels = nn.utils.rnn.pad_sequence(labels, batch_first=True)
 
     return spectrograms, sample_rate,  # transcript, speaker_id, chapter_id, utterance_id
 
-#(B,F,T)
-# def data_preprocessing(data):
-#     spectrograms = []
-#     for (waveform, sample_rate, _, _, _, _) in data:
-#         # Convert waveform to spectrogram
-#         # Extract log Mel-filterbanks
-#         mel_spec = librosa.feature.melspectrogram(
-#             y=waveform[0].numpy(),
-#             sr=SAMPLING_RATE,
-#             n_fft=int(SAMPLING_RATE * 0.025),  # window size of 25 ms
-#             hop_length=int(SAMPLING_RATE * 0.01),  # step size of 10 ms
-#             n_mels=80,
-#             norm=None,
-#             power=1.0
-#         )
-#         if mel_spec.shape[1] % 2 != 0:
-#             mel_spec = mel_spec[:,:-1]
-#         spectrograms.append(torch.from_numpy(mel_spec).unsqueeze(dim=0))
-#     spectrograms = combine_tensors_with_min_dim(spectrograms)
-#     return spectrograms, None  # For compatibility with images
 
-
-train = torchaudio.datasets.LIBRISPEECH(DATASET_PATH, url='train-clean-100', download=True)
-train_loader = DataLoader(train, batch_size=BATHC_SIZE, shuffle=True, collate_fn=lambda x: data_preprocessing(x))
 
 
 def plot_spectrogram(specgram, title=None, ylabel="freq_bin", ax=None):
@@ -193,6 +157,8 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
     torch.save(model, 'model.pt')
 
 if __name__ == '__main__':
+    train_dataset = torchaudio.datasets.LIBRISPEECH(DATASET_PATH, url='train-clean-100', download=True)
+    train_loader = DataLoader(train_dataset, batch_size=BATHC_SIZE, shuffle=True, collate_fn=lambda x: data_preprocessing(x))
 
     model = ConvolutionalVQVAE(in_channels, num_hiddens, embedding_dim, num_residual_layers, num_residual_hiddens,
                                commitment_cost, num_embeddings).to(device)
