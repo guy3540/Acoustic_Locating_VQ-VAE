@@ -12,10 +12,13 @@ import matplotlib.pyplot as plt
 import librosa
 from six.moves import xrange
 
+import rir_generator as rir
+import scipy.signal as ss
+
 from convolutional_vq_vae import ConvolutionalVQVAE
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-DATASET_PATH = os.path.join(os.getcwd(), "data")
+DATASET_PATH = '/home/guy/PycharmProjects/Acoustic_Locating_VQ-VAE/data'
 BATHC_SIZE = 64
 LR = 1e-3  # as is in the speach article
 SAMPLING_RATE = 16e3
@@ -50,6 +53,12 @@ use_speaker_conditioning = False
 audio_transformer = torchaudio.transforms.Spectrogram(n_fft=NFFT, hop_length=HOP_LENGTH, power=1, center=True, pad=0, normalized=True)
 # audio_transformer = torchaudio.transforms.MelSpectrogram(n_fft=NFFT, sample_rate=SAMPLING_RATE,hop_length=HOP_LENGTH,n_mels=IN_FEACHER_SIZE)
 # audio_transformer = torchaudio.transforms.MelSpectrogram(n_fft=NFFT, sample_rate=SAMPLING_RATE,hop_length=HOP_LENGTH,n_mels=IN_FEACHER_SIZE, window_fn=torch.hann_window, power=1.0, center=True)
+
+h_c = 340
+h_rec_pos = [2, 1, 1]  # When calculating the RIR, for now, we assume 1m distance
+h_room_dim = [4, 5, 3]
+h_rev_time = 0.4
+h_n_sample = int(h_rev_time * SAMPLING_RATE)
 
 def combine_tensors_with_min_dim(tensor_list):
     """
@@ -90,8 +99,33 @@ def combine_tensors_with_min_dim(tensor_list):
 
 def data_preprocessing(data):
     spectrograms = []
+    thetas = []
+
+    theta = np.random.uniform(low=-np.pi, high=np.pi, size=1)
+    thetas.append(theta)
+    z_loc = np.random.uniform(low=0, high=1, size=1)
+    h_src_loc = np.stack((np.cos(theta).T, np.sin(theta).T, z_loc.T), axis=1) + h_rec_pos
+    h = rir.generate(
+        c=h_c,  # Sound velocity (m/s)
+        fs=SAMPLING_RATE,  # Sample frequency (samples/s)
+        r=h_rec_pos,
+        s=np.squeeze(h_src_loc),  # Source position [x y z] (m)
+        L=h_room_dim,  # Room dimensions [x y z] (m)
+        reverberation_time=h_rev_time,  # Reverberation time (s)
+        nsample=h_n_sample,  # Number of output samples
+    )
+
     for (waveform, sample_rate, _, _, _, _) in data:
-        spec = audio_transformer(waveform)
+
+        spec_signal = audio_transformer(waveform)
+
+        waveform_h = ss.convolve(waveform.squeeze(), h.squeeze(), mode='same')
+
+        spec_with_h = audio_transformer(torch.from_numpy(waveform_h))
+
+        spec = np.divide(spec_signal, spec_with_h)
+        spec = np.divide(spec, np.abs(spec).max())
+
         spectrograms.append(spec)
 
     spectrograms = combine_tensors_with_min_dim(spectrograms)
