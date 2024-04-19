@@ -15,17 +15,17 @@ from convolutional_vq_vae import ConvolutionalVQVAE
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DATASET_PATH = r"C:\Users\reiem\PycharmProjects\Acoustic_Locating_VQ-VAE\rir_dataset_generator\rir_dataset"
-BATHC_SIZE = 1
+BATCH_SIZE = 1
 LR = 1e-3
 SAMPLING_RATE = 16e3
 NFFT = int(SAMPLING_RATE * 0.025)
-IN_FEACHER_SIZE = int((NFFT / 2) + 1)
+IN_FEATURE_SIZE = int((NFFT / 2) + 1)
 HOP_LENGTH = int(SAMPLING_RATE * 0.01)
 
 # CONV VQVAE
-output_features_dim = IN_FEACHER_SIZE
+output_features_dim = IN_FEATURE_SIZE
 num_hiddens = 40
-in_channels = IN_FEACHER_SIZE
+in_channels = IN_FEATURE_SIZE
 num_residual_layers = 10
 num_residual_hiddens = 20
 embedding_dim = 3
@@ -94,7 +94,7 @@ def data_preprocessing(data):
 
 
 train = RIR_DATASET(DATASET_PATH)
-train_loader = DataLoader(train, batch_size=BATHC_SIZE, shuffle=True, collate_fn=lambda x: data_preprocessing(x))
+train_loader = DataLoader(train, batch_size=BATCH_SIZE, shuffle=True, collate_fn=lambda x: data_preprocessing(x))
 
 
 def plot_spectrogram(specgram, title=None, ylabel="freq_bin", ax=None):
