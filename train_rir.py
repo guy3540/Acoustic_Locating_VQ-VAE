@@ -35,6 +35,8 @@ use_jitter = False
 jitter_probability = 0.12
 
 audio_transformer = torchaudio.transforms.Spectrogram(n_fft=NFFT, hop_length=HOP_LENGTH, power=1, center=True, pad=0, normalized=True)
+
+
 def combine_tensors_with_min_dim(tensor_list):
     """
   Combines a list of PyTorch tensors with shapes (1, H, x1), (1, H, x2), ..., (1, H, xN)
