@@ -2,8 +2,7 @@ import numpy as np
 from torch import optim
 from torch.utils.data import DataLoader
 from six.moves import xrange
-from VQVAE_speech import \
-    SpeechEncoder, SpeechDecoder  #####################################################################################
+#####################################################################################
 # MIT License                                                                       #
 #                                                                                   #
 # Copyright (C) 2019 Charly Lamothe                                                 #
@@ -46,7 +45,6 @@ class ConvolutionalVQVAE(nn.Module):
     def __init__(self, in_channels: int, num_hiddens: int, embedding_dim: int, num_residual_layers: int, num_residual_hiddens: int,
                  commitment_cost: int, num_embeddings: int, use_jitter: bool=True):
         super(ConvolutionalVQVAE, self).__init__()
-        # self._encoder = SpeechEncoder(in_channels, num_hiddens, num_residual_layers, num_residual_hiddens, embedding_dim)
 
         self._encoder = ConvolutionalEncoder(
             in_channels=in_channels,
@@ -66,7 +64,6 @@ class ConvolutionalVQVAE(nn.Module):
             embedding_dim=embedding_dim,
             commitment_cost=commitment_cost,
         )
-        # self._decoder = SpeechDecoder(embedding_dim, num_hiddens, num_residual_layers, num_residual_hiddens, in_channels)
         self._decoder = DeconvolutionalDecoder(
             in_channels=embedding_dim,
             out_channels=in_channels,
