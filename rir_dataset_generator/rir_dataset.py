@@ -13,57 +13,43 @@ class RIR_DATASET(Dataset):
     def __init__(self, root_dir: str, transform=None):
         self.root_dir = root_dir
         self.transform = transform
-        self.dataset_path = glob.glob(os.path.join(self.root_dir, 'rir_*.wav'))
+        self.dataset_files = glob.glob(os.path.join(self.root_dir, '*.pt'))
+
+        dataset_config = np.load(os.path.join(root_dir, 'dataset_config.npy'),
+                                 allow_pickle=True).item()
+        self.theta = np.load(os.path.join(root_dir, 'theta.npy'))
+
+        self.fs = dataset_config['fs']
+        self.receiver_position = dataset_config['receiver_position']
+        self.room_dimensions = dataset_config['room_dimensions']
+        self.reverberation_time = dataset_config['reverberation_time']
+        self.n_sample = dataset_config['n_sample']
+        self.R = dataset_config['R']
+        self.NFFT = dataset_config['NFFT']
+        self.HOP_LENGTH = dataset_config['HOP_LENGTH']
+        self.Z_LOC_SOURCE = dataset_config['Z_LOC_SOURCE']
 
     def __len__(self):
-        return len(self.dataset_path)
+        return len(self.dataset_files)
 
     def __getitem__(self, idx):
-        wav_path = self.dataset_path[idx]
-        sample_rate, wav = read(wav_path)
-        wav_data = torch.from_numpy(np.array(wav, dtype=np.float32))
-        room = self.get_room_dimensions(wav_path)
-        mic = self.get_mic_location(wav_path)
-        source_location = self.get_source_location(wav_path)
+        item_filename = "{}.pt".format(idx)
+        item_path = os.path.join(self.root_dir, item_filename)
+        item_data = torch.load(item_path)
+        room = self.room_dimensions
+        mic = self.receiver_position
 
-        return wav_data, source_location, mic, room, sample_rate
+        item_theta = self.theta[idx]
 
-    def get_room_dimensions(self, path):
-        """
-        Extracts the three integers after the letter "R" from a path string.
-        """
-        match = re.search(r"R_(\d+)_(\d+)_(\d+)", path)
-        if match:
-            return [int(group) for group in match.groups()]
-        else:
-            return None
+        source_coordinates = self.get_source_coordinates(item_theta)
 
-    def get_mic_dimensions(self, path):
-        """
-        Extracts the three integers after the letter "R" from a path string.
-        """
-        match = re.search(r"M_(\d+)_(\d+)_(\d+)", path)
-        if match:
-            return [int(group) for group in match.groups()]
-        else:
-            return None
+        return item_data, source_coordinates, mic, room, self.fs
 
-    def get_mic_location(self, path):
-        """
-        Extracts the three integers after the letter "R" from a path string.
-        """
-        match = re.search(r"M_(\d+)_(\d+)_(\d+)", path)
-        if match:
-            return [int(group) for group in match.groups()]
-        else:
-            return None
+    def get_source_coordinates(self, theta):
 
-    def get_source_location(self, path):
-        """
-      Extracts the three floats after the letter "S" from a path string.
-      """
-        match = re.search(r"S_(\d+\.\d+)_(\d+\.\d+)_(\d+\.\d+)", path)
-        if match:
-            return [float(group) for group in match.groups()]
-        else:
-            return None
+        z_loc = np.array([self.Z_LOC_SOURCE])
+        receiver_position = self.receiver_position
+        h_src_loc = (receiver_position +
+                     np.stack((self.R * np.cos(theta).T, self.R * np.sin(theta).T, z_loc), axis=1))
+        h_src_loc = np.minimum(h_src_loc, self.room_dimensions)
+        return h_src_loc

@@ -11,4 +11,4 @@ loader = torch.utils.data.DataLoader(dataset=dataset, batch_size=1)
 
 for i, (wav_data, source_location, mic, room, sample_rate) in enumerate(loader):
 
-    print("i")
+    print(i)
