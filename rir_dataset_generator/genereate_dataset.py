@@ -23,7 +23,8 @@ room_dimensions = [4, 5, 3]
 reverberation_time = 0.4
 n_sample = int(reverberation_time * fs)
 R = 1
-DATASET_SIZE = 100
+DATASET_SIZE = 10
+Z_LOC_SOURCE = 1
 
 git_root_path = Utilities.get_git_root()
 LibriSpeech_PATH = os.path.join(git_root_path, 'data')
@@ -33,14 +34,26 @@ Path(DATASET_DEST_PATH).mkdir(parents=True, exist_ok=True)
 NFFT = int(fs * 0.025)
 HOP_LENGTH = int(fs * 0.01)
 
+dataset_config = {
+    "fs": int(fs),
+    "receiver_position": receiver_position,
+    "room_dimensions": room_dimensions,
+    "reverberation_time": reverberation_time,
+    "n_sample": n_sample,
+    "R": R,
+    "NFFT": NFFT,
+    "HOP_LENGTH": HOP_LENGTH,
+    "Z_LOC_SOURCE": Z_LOC_SOURCE
+}
+
 audio_transformer = torchaudio.transforms.Spectrogram(n_fft=NFFT, hop_length=HOP_LENGTH, power=1,
                                                       center=True, pad=0, normalized=True)
 
 
 def data_preprocessing(data):
     theta = np.random.uniform(low=-np.pi, high=np.pi, size=1)
-    z_loc = np.random.uniform(low=0, high=1, size=1)
-    h_src_loc = np.stack((R*np.cos(theta).T, R*np.sin(theta).T, z_loc.T), axis=1) + receiver_position
+    z_loc = np.array([Z_LOC_SOURCE])
+    h_src_loc = np.stack((R*np.cos(theta).T, R*np.sin(theta).T, z_loc), axis=1) + receiver_position
     h_src_loc = np.minimum(h_src_loc, room_dimensions)
     h_RIR = rir.generate(
         c=C,  # Sound velocity (m/s)
@@ -76,4 +89,5 @@ for i_sample in range(DATASET_SIZE):
     scaled = np.int16(spec_final / np.abs(spec_final).max() * 32767)
     torch.save(scaled, filename)
 
-torch.save(theta_array, os.path.join(DATASET_DEST_PATH, 'theta.pt'))
+np.save(os.path.join(DATASET_DEST_PATH, 'theta.npy'), np.array(theta_array))
+np.save(os.path.join(DATASET_DEST_PATH, 'dataset_config.npy'), dataset_config)
