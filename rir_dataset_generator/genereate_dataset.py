@@ -26,7 +26,6 @@ R = 1
 DATASET_SIZE = 100
 
 git_root_path = Utilities.get_git_root()
-LibriSpeech_PATH = os.path.join(git_root_path, 'data')
 DATASET_DEST_PATH = os.path.join(git_root_path, 'rir_dataset_generator', 'dev_data')
 Path(DATASET_DEST_PATH).mkdir(parents=True, exist_ok=True)
 
