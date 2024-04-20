@@ -1,6 +1,7 @@
 import os.path
 import git
 import random
+import Utilities
 
 import numpy as np
 import scipy.signal as ss
@@ -15,12 +16,6 @@ from torch.utils.data import DataLoader
 from pathlib import Path
 
 
-def get_git_root(path):
-    git_repo = git.Repo(path, search_parent_directories=True)
-    git_root = git_repo.git.rev_parse("--show-toplevel")
-    return git_root
-
-
 C = 340
 fs = 16e3
 receiver_position = [2, 1.5, 1.5]
@@ -30,7 +25,7 @@ n_sample = int(reverberation_time * fs)
 R = 1
 DATASET_SIZE = 100
 
-git_root_path = get_git_root(os.getcwd())
+git_root_path = Utilities.get_git_root()
 LibriSpeech_PATH = os.path.join(git_root_path, 'data')
 DATASET_DEST_PATH = os.path.join(git_root_path, 'rir_dataset_generator', 'dev_data')
 Path(DATASET_DEST_PATH).mkdir(parents=True, exist_ok=True)

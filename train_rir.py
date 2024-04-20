@@ -10,11 +10,14 @@ import matplotlib.pyplot as plt
 import librosa
 from six.moves import xrange
 from rir_dataset_generator.rir_dataset import RIR_DATASET
+import Utilities
 
 from convolutional_vq_vae import ConvolutionalVQVAE
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-DATASET_PATH = r"C:\Users\reiem\PycharmProjects\Acoustic_Locating_VQ-VAE\rir_dataset_generator\rir_dataset"
+
+git_root_path = Utilities.get_git_root()
+DATASET_PATH = os.path.join(git_root_path, 'rir_dataset_generator', 'rir_dataset')
 BATCH_SIZE = 1
 LR = 1e-3
 SAMPLING_RATE = 16e3

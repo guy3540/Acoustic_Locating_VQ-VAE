@@ -1,15 +1,19 @@
 import torch
 import librosa
-from entry import data_preprocessing
+from main import data_preprocessing
 import os
 from torch.utils.data import DataLoader
 import torchaudio
 import numpy as np
 from scipy.io.wavfile import write
 import matplotlib.pyplot as plt
+import Utilities
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = torch.load(r'C:\Users\reiem\PycharmProjects\Acoustic_Locating_VQ-VAE\BasedOnVQ-VAE-Speech\model.pt')
+
+git_root_path = Utilities.get_git_root()
+model = torch.load(os.path.join(git_root_path, 'model.pt'))
+
 fs = 16e3
 dataset_path = os.path.join(os.getcwd(), "data")
 batch_size = 1
