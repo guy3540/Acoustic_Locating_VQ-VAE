@@ -1,15 +1,8 @@
 import os.path
-import git
-import random
-import Utilities
 
 import numpy as np
 import scipy.signal as ss
-import soundfile as sf
 import rir_generator as rir
-import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
-from scipy.io.wavfile import write
 import torchaudio
 import torch
 from torch.utils.data import DataLoader
@@ -26,9 +19,9 @@ R = 1
 DATASET_SIZE = 10
 Z_LOC_SOURCE = 1
 
-git_root_path = Utilities.get_git_root()
-LibriSpeech_PATH = os.path.join(git_root_path, 'data')
-DATASET_DEST_PATH = os.path.join(git_root_path, 'rir_dataset_generator', 'dev_data')
+
+LibriSpeech_PATH = os.path.join(os.getcwd(), 'data')
+DATASET_DEST_PATH = os.path.join(os.getcwd(), 'rir_dataset_generator', 'dev_data')
 Path(DATASET_DEST_PATH).mkdir(parents=True, exist_ok=True)
 
 NFFT = int(fs * 0.025)

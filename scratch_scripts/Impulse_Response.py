@@ -11,7 +11,7 @@ import tarfile
 from scipy import signal
 
 
-data_dir = 'data/'
+data_dir = '../scripts/data/'
 data_url = 'https://www.openslr.org/resources/12/dev-clean.tar.gz'
 filename = data_url.rsplit('/', 1)[-1]
 filepath = os.path.join(data_dir, filename)

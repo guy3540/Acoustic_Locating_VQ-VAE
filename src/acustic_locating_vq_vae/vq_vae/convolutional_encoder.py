@@ -1,4 +1,4 @@
-from modules.residual_stack import ResidualStack
+from .modules.residual_stack import ResidualStack
 
 import torch.nn as nn
 import torch.nn.functional as F

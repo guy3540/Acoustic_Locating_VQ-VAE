@@ -7,10 +7,10 @@ from scipy.signal import savgol_filter
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
-import librosa
 from six.moves import xrange
 
-from convolutional_vq_vae import ConvolutionalVQVAE
+from acustic_locating_vq_vae.visualization import plot_spectrogram
+from acustic_locating_vq_vae.vq_vae.convolutional_vq_vae import ConvolutionalVQVAE
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -87,15 +87,6 @@ def data_preprocessing(data):
     spectrograms = combine_tensors_with_min_dim(spectrograms)
 
     return spectrograms, sample_rate,  # transcript, speaker_id, chapter_id, utterance_id
-
-
-def plot_spectrogram(specgram, title=None, ylabel="freq_bin", ax=None):
-    if ax is None:
-        _, ax = plt.subplots(1, 1)
-    if title is not None:
-        ax.set_title(title)
-    ax.set_ylabel(ylabel)
-    ax.imshow(librosa.power_to_db(specgram), origin="lower", aspect="auto", interpolation="nearest")
 
 
 def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):

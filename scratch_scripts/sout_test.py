@@ -1,21 +1,20 @@
 import torch
 import librosa
-from main import data_preprocessing
+from scripts.main import data_preprocessing
 import os
 from torch.utils.data import DataLoader
 import torchaudio
 import numpy as np
 from scipy.io.wavfile import write
 import matplotlib.pyplot as plt
-import Utilities
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-git_root_path = Utilities.get_git_root()
-model = torch.load(os.path.join(git_root_path, 'model.pt'))
+
+model = torch.load(os.path.join(os.getcwd(), 'model.pt'))
 
 fs = 16e3
-dataset_path = os.path.join(os.getcwd(), "data")
+dataset_path = os.path.join(os.getcwd(), "../scripts/data")
 batch_size = 1
 
 def sound_from_sample(data, fs, filename):

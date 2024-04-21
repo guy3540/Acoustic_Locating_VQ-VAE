@@ -3,7 +3,6 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from torchvision.transforms import ToTensor
 import torchaudio
 from scipy.signal import savgol_filter
 from torch.utils.data import DataLoader
@@ -11,15 +10,14 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import librosa
 from six.moves import xrange
-from rir_dataset_generator.rir_dataset import RIR_DATASET
-import Utilities
+from acustic_locating_vq_vae.rir_dataset_generator.rir_dataset import RIR_DATASET
 
-from convolutional_vq_vae import ConvolutionalVQVAE
+from acustic_locating_vq_vae.vq_vae.convolutional_vq_vae import ConvolutionalVQVAE
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-git_root_path = Path(Utilities.get_git_root())
-DATASET_PATH = git_root_path/ 'rir_dataset_generator'/ 'dev_data'
+
+DATASET_PATH = Path(os.getcwd()) / 'rir_dataset_generator'/ 'dev_data'
 BATCH_SIZE = 1
 LR = 1e-3
 SAMPLING_RATE = 16e3
