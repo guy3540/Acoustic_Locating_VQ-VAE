@@ -7,7 +7,6 @@ import torchaudio
 import numpy as np
 from scipy.io.wavfile import write
 import matplotlib.pyplot as plt
-from scripts import Utilities
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

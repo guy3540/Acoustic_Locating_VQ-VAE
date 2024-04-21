@@ -1,5 +1,5 @@
-from modules.residual_stack import ResidualStack
-from modules.jitter import Jitter
+from .modules.residual_stack import ResidualStack
+from .modules.jitter import Jitter
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

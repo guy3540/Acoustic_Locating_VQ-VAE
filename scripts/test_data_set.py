@@ -1,11 +1,9 @@
 import torch
-from scripts import Utilities
 import os
 
 from acustic_locating_vq_vae.rir_dataset_generator.rir_dataset import RIR_DATASET
 
-git_root_path = Utilities.get_git_root()
-dataset = RIR_DATASET(root_dir=os.path.join(git_root_path, 'rir_dataset_generator', 'dev_data'))
+dataset = RIR_DATASET(root_dir=os.path.join(os.getcwd(), 'rir_dataset_generator', 'dev_data'))
 
 loader = torch.utils.data.DataLoader(dataset=dataset, batch_size=1)
 
