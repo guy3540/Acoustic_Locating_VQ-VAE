@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+write_to = "src/acustic_locating_vq_vae/_version.py"
+
+[tool.distutils.bdist_wheel]
+universal = true
+
+[tool.setuptools.dynamic]
+readme = {file = ["README.md"]}
+
+[tool.setuptools]
+license-files = ["LICENSE.txt"]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]  # list of folders that contain the packages (["."] by default)
+include = ["acustic_locating_vq_vae"]  # package names should match these glob patterns (["*"] by default)
+exclude = []  # exclude packages matching these glob patterns (empty by default)
+
+[project]
+name = "acustic_locating_vq_vae"
+authors = [
+    {name = "Reie Matza", email = "reie.matza@vayyar.com"},
+    {name = "Guy Skury", email = "guy3540@gmail.com"},
+]
+description = "Project for deep learning course"
+readme = "README.md"
+requires-python = "<3.11"
+keywords = ["VQ-VAE"]
+license = {text = "Proprietary"}
+classifiers = [
+    'Development Status :: 3 - Beta',
+    'Intended Audience :: Developers',
+    'Operating System :: OS Independent',
+    'Programming Language :: Python :: 3',
+]
+dependencies = [
+    "soundfile",
+    "librosa",
+    "matplotlib",
+    "rir-generator",
+    ]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+tests = [
+    "pytest",
+]

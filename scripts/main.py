@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import librosa
 from six.moves import xrange
 
-from convolutional_vq_vae import ConvolutionalVQVAE
+from acustic_locating_vq_vae.vq_vae.convolutional_vq_vae import ConvolutionalVQVAE
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
