@@ -1,7 +1,9 @@
 import os
+from pathlib import Path
 
 import numpy as np
 import torch
+from torchvision.transforms import ToTensor
 import torchaudio
 from scipy.signal import savgol_filter
 from torch.utils.data import DataLoader
@@ -16,8 +18,8 @@ from convolutional_vq_vae import ConvolutionalVQVAE
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-git_root_path = Utilities.get_git_root()
-DATASET_PATH = os.path.join(git_root_path, 'rir_dataset_generator', 'rir_dataset')
+git_root_path = Path(Utilities.get_git_root())
+DATASET_PATH = git_root_path/ 'rir_dataset_generator'/ 'dev_data'
 BATCH_SIZE = 1
 LR = 1e-3
 SAMPLING_RATE = 16e3
@@ -39,65 +41,8 @@ jitter_probability = 0.12
 
 audio_transformer = torchaudio.transforms.Spectrogram(n_fft=NFFT, hop_length=HOP_LENGTH, power=1, center=True, pad=0, normalized=True)
 
-
-def combine_tensors_with_min_dim(tensor_list):
-    """
-  Combines a list of PyTorch tensors with shapes (1, H, x1), (1, H, x2), ..., (1, H, xN)
-  into a new tensor of shape (N, H, X), where X is the minimum dimension among x1, x2, ..., xN.
-
-  Args:
-      tensor_list: A list of PyTorch tensors with the same height (H).
-
-  Returns:
-      A new tensor of shape (N, H, X), where X is the minimum dimension.
-
-  Raises:
-      ValueError: If the tensors in the list do not have the same height (H).
-  """
-
-    if not tensor_list:
-        raise ValueError("Input tensor list cannot be empty")
-
-    # Check if all tensors have the same height (H)
-    H = tensor_list[0].size(1)
-    for tensor in tensor_list:
-        if tensor.size(1) != H:
-            raise ValueError("All tensors in the list must have the same height (H)")
-
-    # Get the minimum dimension (X) across all tensors in the list
-    min_dim = min(tensor.size(2) for tensor in tensor_list)
-
-    # Create a new tensor to store the combined data
-    combined_tensor = torch.zeros((len(tensor_list), H, min_dim))
-
-    # Fill the combined tensor with data from the input tensors, selecting the minimum value for each element
-    for i, tensor in enumerate(tensor_list):
-        combined_tensor[i, :, :] = tensor[:, :, :min_dim]
-
-    return combined_tensor
-
-
-def data_preprocessing(data):
-    spectrograms = []
-    source_locations =[]
-    mic_locations = []
-    room_dimentrions = []
-    sample_rates =[]
-    for (waveform, source_location, mic, room, sample_rate) in data:
-        spec = audio_transformer(waveform)
-        spectrograms.append(torch.unsqueeze(spec,dim=0))
-        source_locations.append(source_location)
-        mic_locations.append(mic)
-        room_dimentrions.append(room)
-        sample_rates.append(sample_rate)
-
-    spectrograms = combine_tensors_with_min_dim(spectrograms)
-
-    return spectrograms, torch.tensor(source_locations)
-
-
 train = RIR_DATASET(DATASET_PATH)
-train_loader = DataLoader(train, batch_size=BATCH_SIZE, shuffle=True, collate_fn=lambda x: data_preprocessing(x))
+train_loader = DataLoader(train, batch_size=BATCH_SIZE, shuffle=True)
 
 
 def plot_spectrogram(specgram, title=None, ylabel="freq_bin", ax=None):
@@ -117,15 +62,17 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
 
     # waveform B,C,S
     for i in xrange(num_training_updates):
-        (x, source_location) = next(iter(train_loader))
+        x, source_coordinates, mic, room, fs = next(iter(train_loader))
+        x = x.type(torch.FloatTensor)
         x = x.to(device)
+        x = torch.squeeze(x,0)
 
         optimizer.zero_grad()
         vq_loss, reconstructed_x, perplexity = model(x)
 
         if not x.shape == reconstructed_x.shape:
-            retuction = reconstructed_x.shape[2] - x.shape[2]
-            recon_error = F.mse_loss(reconstructed_x[:, :, :-retuction], x)  # / data_variance
+            reduction = reconstructed_x.shape[2] - x.shape[2]
+            recon_error = F.mse_loss(reconstructed_x[:, :, :-reduction], x)  # / data_variance
         else:
             recon_error = F.mse_loss(reconstructed_x, x)
         loss = recon_error + vq_loss
@@ -171,5 +118,4 @@ if __name__ == '__main__':
                                commitment_cost, num_embeddings, use_jitter=use_jitter).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, amsgrad=False)
     train(model=model, optimizer=optimizer, num_training_updates=15000)
-    # model.train_on_data(optimizer,train_loader,num_training_updates=15000, data_variance=1)
     print("init")

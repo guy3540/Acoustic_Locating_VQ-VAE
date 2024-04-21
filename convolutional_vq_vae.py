@@ -43,7 +43,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class ConvolutionalVQVAE(nn.Module):
 
     def __init__(self, in_channels: int, num_hiddens: int, embedding_dim: int, num_residual_layers: int, num_residual_hiddens: int,
-                 commitment_cost: int, num_embeddings: int, use_jitter: bool=True):
+                 commitment_cost: float, num_embeddings: int, use_jitter: bool=True):
         super(ConvolutionalVQVAE, self).__init__()
 
         self._encoder = ConvolutionalEncoder(
