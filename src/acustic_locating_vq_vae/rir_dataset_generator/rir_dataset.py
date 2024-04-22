@@ -6,6 +6,29 @@ import torch
 from torch.utils.data import Dataset
 
 
+def trim_batched_data(data):  # To be used in DataLoader for handling batches
+    batch_size = len(data)
+    min_len = data[0][0].shape[2]
+    n_freqs = data[0][0].shape[1]
+
+    mic = data[0][2]
+    room = data[0][3]
+    fs = data[0][4]
+
+    for i in range(batch_size):
+        if data[i][0].shape[2] < min_len:
+            min_len = data[i][0].shape[2]
+
+    batch_data = np.zeros((batch_size, n_freqs, min_len))
+    source_coordinates = np.zeros((batch_size, 3))
+
+    for i in range(batch_size):
+        batch_data[i, :, ] = data[i][0][:, :, :min_len]
+        source_coordinates[i, :] = data[i][1]
+
+    return torch.from_numpy(batch_data), source_coordinates, mic, room, fs
+
+
 class RIR_DATASET(Dataset):
     def __init__(self, root_dir: str, transform=None):
         self.root_dir = root_dir
@@ -28,6 +51,15 @@ class RIR_DATASET(Dataset):
 
     def __len__(self):
         return len(self.dataset_files)
+
+    def get_mic_location(self):
+        return self.receiver_position
+
+    def get_fs(self):
+        return self.fs
+
+    def get_room_dimensions(self):
+        return self.room_dimensions
 
     def __getitem__(self, idx):
         item_filename = "{}.pt".format(idx)

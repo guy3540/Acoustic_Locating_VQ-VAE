@@ -13,26 +13,29 @@ from six.moves import xrange
 from acustic_locating_vq_vae.rir_dataset_generator.rir_dataset import RIR_DATASET
 
 from acustic_locating_vq_vae.vq_vae.convolutional_vq_vae import ConvolutionalVQVAE
+from acustic_locating_vq_vae.rir_dataset_generator.rir_dataset import trim_batched_data
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-DATASET_PATH = Path(os.getcwd()) / 'rir_dataset_generator'/ 'dev_data'
-BATCH_SIZE = 1
+DATASET_PATH = os.path.join(Path(os.getcwd()), 'rir_dataset_generator', 'train_data')
+BATCH_SIZE = 256
 LR = 1e-3
 SAMPLING_RATE = 16e3
 NFFT = int(SAMPLING_RATE * 0.025)
 IN_FEATURE_SIZE = int((NFFT / 2) + 1)
 HOP_LENGTH = int(SAMPLING_RATE * 0.01)
 
+num_training_updates = 150000
+
 # CONV VQVAE
 output_features_dim = IN_FEATURE_SIZE
-num_hiddens = 40
+num_hiddens = 100
 in_channels = IN_FEATURE_SIZE
-num_residual_layers = 10
-num_residual_hiddens = 20
-embedding_dim = 3
-num_embeddings = 5  # The higher this value, the higher the capacity in the information bottleneck.
+num_residual_layers = 2
+num_residual_hiddens = 100
+embedding_dim = 128
+num_embeddings = 512  # The higher this value, the higher the capacity in the information bottleneck.
 commitment_cost = 0.25  # as recommended in VQ VAE article
 use_jitter = False
 jitter_probability = 0.12
@@ -40,7 +43,7 @@ jitter_probability = 0.12
 audio_transformer = torchaudio.transforms.Spectrogram(n_fft=NFFT, hop_length=HOP_LENGTH, power=1, center=True, pad=0, normalized=True)
 
 train = RIR_DATASET(DATASET_PATH)
-train_loader = DataLoader(train, batch_size=BATCH_SIZE, shuffle=True)
+train_loader = DataLoader(train, batch_size=BATCH_SIZE, shuffle=True, collate_fn=trim_batched_data)
 
 
 def plot_spectrogram(specgram, title=None, ylabel="freq_bin", ax=None):
@@ -63,7 +66,7 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
         x, source_coordinates, mic, room, fs = next(iter(train_loader))
         x = x.type(torch.FloatTensor)
         x = x.to(device)
-        x = torch.squeeze(x,0)
+        x = torch.squeeze(x, 0)
 
         optimizer.zero_grad()
         vq_loss, reconstructed_x, perplexity = model(x)
@@ -109,11 +112,13 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
     ax.set_xlabel('iteration')
     plt.show()
     torch.save(model, 'model_rir.pt')
+    torch.save(model.state_dict(), 'model_st_rir.pt')
+
 
 if __name__ == '__main__':
 
     model = ConvolutionalVQVAE(in_channels, num_hiddens, embedding_dim, num_residual_layers, num_residual_hiddens,
                                commitment_cost, num_embeddings, use_jitter=use_jitter).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, amsgrad=False)
-    train(model=model, optimizer=optimizer, num_training_updates=15000)
-    print("init")
+    train(model=model, optimizer=optimizer, num_training_updates=num_training_updates)
+
