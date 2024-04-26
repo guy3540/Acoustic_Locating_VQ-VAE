@@ -8,6 +8,7 @@ import torch
 from torch.utils.data import DataLoader
 from pathlib import Path
 
+from acustic_locating_vq_vae.visualization import plot_spectrogram
 
 C = 340
 fs = 16e3

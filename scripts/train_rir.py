@@ -8,9 +8,9 @@ from scipy.signal import savgol_filter
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
-import librosa
 from six.moves import xrange
 from acustic_locating_vq_vae.rir_dataset_generator.rir_dataset import RIR_DATASET
+from acustic_locating_vq_vae.visualization import plot_spectrogram
 
 from acustic_locating_vq_vae.vq_vae.convolutional_vq_vae import ConvolutionalVQVAE
 
@@ -41,15 +41,6 @@ audio_transformer = torchaudio.transforms.Spectrogram(n_fft=NFFT, hop_length=HOP
 
 train = RIR_DATASET(DATASET_PATH)
 train_loader = DataLoader(train, batch_size=BATCH_SIZE, shuffle=True)
-
-
-def plot_spectrogram(specgram, title=None, ylabel="freq_bin", ax=None):
-    if ax is None:
-        _, ax = plt.subplots(1, 1)
-    if title is not None:
-        ax.set_title(title)
-    ax.set_ylabel(ylabel)
-    ax.imshow(librosa.power_to_db(specgram), origin="lower", aspect="auto", interpolation="nearest")
 
 
 def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
