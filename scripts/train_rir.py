@@ -147,7 +147,7 @@ def run_location_training():
     DATASET_PATH = Path(os.getcwd()) / 'rir_dataset_generator' / 'dev_data'
     encoder_output_dim = 101
     num_embeddings = 512
-    BATCH_SIZE = 1
+    BATCH_SIZE = 64
     num_training_updates = 15000
 
     train_data = RIR_DATASET(DATASET_PATH)
@@ -161,7 +161,7 @@ def run_location_training():
 
 def run_rir_training():
     DATASET_PATH = Path(os.getcwd()) / 'rir_dataset_generator' / 'dev_data'
-    BATCH_SIZE = 1
+    BATCH_SIZE = 64
     LR = 1e-3
     # SAMPLING_RATE = 16e3
     # NFFT = int(SAMPLING_RATE * 0.025)
@@ -218,5 +218,6 @@ def evaluate_model():
 
 
 if __name__ == '__main__':
+    run_rir_training()
     # run_location_training()
-    evaluate_model()
+    # evaluate_model()
