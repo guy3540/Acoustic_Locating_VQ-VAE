@@ -37,7 +37,7 @@ def rir_data_preprocessing(data):
     return spectrograms, source_coordinates_list, mic_list, room_list, fs_list
 
 
-def train_vq_vae(model: ConvolutionalVQVAE, optimizer, num_training_updates):
+def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_training_updates):
     model.train()
 
     train_res_recon_error = []
@@ -98,7 +98,7 @@ def train_vq_vae(model: ConvolutionalVQVAE, optimizer, num_training_updates):
     torch.save(model, 'model_rir.pt')
 
 
-def train_location(vae_model:ConvolutionalVQVAE, location_model, optimizer, num_training_updates, train_loader):
+def train_location(vae_model: ConvolutionalVQVAE, location_model, optimizer, num_training_updates, train_loader):
     location_model.train()
     vae_model.eval()
 
@@ -130,7 +130,6 @@ def train_location(vae_model:ConvolutionalVQVAE, location_model, optimizer, num_
             print(location)
             print(torch.squeeze(source_coordinates).float())
             print()
-
 
     train_res_recon_error_smooth = savgol_filter(train_location_error, 201, 7)
 
@@ -188,8 +187,36 @@ def run_rir_training():
                                commitment_cost, num_embeddings, use_jitter=use_jitter).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, amsgrad=False)
-    train_vq_vae(model=model, optimizer=optimizer, num_training_updates=15000)
+    train_vq_vae(model=model, optimizer=optimizer, train_loader=train_loader, num_training_updates=15000)
+
+
+def evaluate_model():
+    DATASET_PATH = Path(os.getcwd()) / 'rir_dataset_generator' / 'eval_data'
+    test_data = RIR_DATASET(DATASET_PATH)
+    BATCH_SIZE = 1
+    test_loader = DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=True)
+    vae_model = torch.load('model_rir.pt').to(device)
+    location_model = torch.load('location_model.pt').to(device)
+
+    vae_model.eval()
+    location_model.eval()
+
+    for i in range(10):
+        x, source_coordinates, mic, room, fs = next(iter(test_loader))
+        source_coordinates = torch.squeeze(source_coordinates).to(device)
+        x = x.type(torch.FloatTensor)
+        x = x.to(device)
+        x = (x - torch.mean(x, dim=1, keepdim=True)) / (torch.std(x, dim=1, keepdim=True) + 1e-8)
+        x = torch.unsqueeze(x, 1)
+
+        loss, quantized, perplexity, encodings = vae_model.get_latent_representation(x)
+        location = location_model(torch.flatten(encodings))
+        loss = F.mse_loss(location, source_coordinates.float())
+        print(loss.item())
+        print(f"original location: {source_coordinates[0].item():.2f},{source_coordinates[1].item():.2f},{source_coordinates[2].item():.2f},"
+              f" estimated location: {location[0].item():.2f},{location[1].item():.2f},{location[2].item():.2f}")
 
 
 if __name__ == '__main__':
-    run_location_training()
+    # run_location_training()
+    evaluate_model()

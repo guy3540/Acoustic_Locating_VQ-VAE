@@ -21,7 +21,7 @@ Z_LOC_SOURCE = 1
 
 
 LibriSpeech_PATH = os.path.join(os.getcwd(), 'data')
-DATASET_DEST_PATH = os.path.join(os.getcwd(), 'rir_dataset_generator', 'dev_data')
+DATASET_DEST_PATH = os.path.join(os.getcwd(), 'rir_dataset_generator', 'eval_data')
 Path(DATASET_DEST_PATH).mkdir(parents=True, exist_ok=True)
 
 NFFT = int(fs * 0.025)
