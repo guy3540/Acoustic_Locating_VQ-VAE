@@ -99,13 +99,15 @@ def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_trainin
 
 
 def train_location(vae_model: ConvolutionalVQVAE, location_model, optimizer, num_training_updates, train_loader):
-    location_model.train()
     vae_model.eval()
+    location_model.train()
 
     train_location_error = []
+    test_location_error = []
 
     # waveform B,C,S
     for i in xrange(num_training_updates):
+
         x, source_coordinates, mic, room, fs = next(iter(train_loader))
         source_coordinates = source_coordinates.to(device)
         x = x.type(torch.FloatTensor)
@@ -115,7 +117,9 @@ def train_location(vae_model: ConvolutionalVQVAE, location_model, optimizer, num
 
         optimizer.zero_grad()
         loss, quantized, perplexity, encodings = vae_model.get_latent_representation(x)
-        location = location_model(torch.flatten(encodings))
+        encodings = encodings.view(x.size(0), quantized.size(2), encodings.size(1))
+        encodings = encodings.view(x.size(0), quantized.size(2) * encodings.size(2))
+        location = location_model(encodings)
 
         loss = F.mse_loss(location, torch.squeeze(source_coordinates).float())
         loss.backward()
@@ -126,19 +130,29 @@ def train_location(vae_model: ConvolutionalVQVAE, location_model, optimizer, num
 
         if (i + 1) % 100 == 0:
             print('%d iterations' % (i + 1))
-            print('recon_error: %.3f' % np.mean(train_location_error[-100:]))
-            print(location)
-            print(torch.squeeze(source_coordinates).float())
+            print('location error train: %.3f' % np.mean(train_location_error[-100:]))
+            mea_test_error = evaluate_model(location_model)
+            location_model.train()
+            print('location error test: %.3f' % mea_test_error)
             print()
+            test_location_error.append(mea_test_error)
 
     train_res_recon_error_smooth = savgol_filter(train_location_error, 201, 7)
+    test_location_error_smooth = savgol_filter(test_location_error, 201, 7)
 
     f = plt.figure()
-    ax = f.add_subplot(1, 1, 1)
+    ax = f.add_subplot(2, 1, 1)
     ax.plot(train_res_recon_error_smooth)
     ax.set_yscale('log')
-    ax.set_title('Smoothed NMSE.')
+    ax.set_title('Smoothed MSE. Train')
     ax.set_xlabel('iteration')
+
+    ax = f.add_subplot(2, 1, 2)
+    ax.plot(test_location_error_smooth)
+    ax.set_yscale('log')
+    ax.set_title('Smoothed MSE. TEST')
+    ax.set_xlabel('iteration/100')
+
     torch.save(location_model, 'location_model.pt')
     plt.show()
 
@@ -190,18 +204,18 @@ def run_rir_training():
     train_vq_vae(model=model, optimizer=optimizer, train_loader=train_loader, num_training_updates=15000)
 
 
-def evaluate_model():
+def evaluate_model(location_model=torch.load('location_model.pt').to(device)):
     DATASET_PATH = Path(os.getcwd()) / 'rir_dataset_generator' / 'eval_data'
     test_data = RIR_DATASET(DATASET_PATH)
     BATCH_SIZE = 1
     test_loader = DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=True)
     vae_model = torch.load('model_rir.pt').to(device)
-    location_model = torch.load('location_model.pt').to(device)
+    # location_model = torch.load('location_model.pt').to(device)
 
     vae_model.eval()
     location_model.eval()
-
-    for i in range(10):
+    loss_list = []
+    for i in range(100):
         x, source_coordinates, mic, room, fs = next(iter(test_loader))
         source_coordinates = torch.squeeze(source_coordinates).to(device)
         x = x.type(torch.FloatTensor)
@@ -212,12 +226,16 @@ def evaluate_model():
         loss, quantized, perplexity, encodings = vae_model.get_latent_representation(x)
         location = location_model(torch.flatten(encodings))
         loss = F.mse_loss(location, source_coordinates.float())
-        print(loss.item())
-        print(f"original location: {source_coordinates[0].item():.2f},{source_coordinates[1].item():.2f},{source_coordinates[2].item():.2f},"
-              f" estimated location: {location[0].item():.2f},{location[1].item():.2f},{location[2].item():.2f}")
+        loss_list.append(loss.item())
+        # print(loss_list[-1])
+        # print(
+        #     f"original location: {source_coordinates[0].item():.2f},{source_coordinates[1].item():.2f},{source_coordinates[2].item():.2f},"
+        #     f" estimated location: {location[0].item():.2f},{location[1].item():.2f},{location[2].item():.2f}")
+    mean_loss = torch.mean(torch.as_tensor(loss_list))
+    return mean_loss
 
 
 if __name__ == '__main__':
-    run_rir_training()
-    # run_location_training()
+    # run_rir_training()
+    run_location_training()
     # evaluate_model()

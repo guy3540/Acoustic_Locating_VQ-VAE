@@ -3,9 +3,10 @@ from torch import nn
 
 class LocationModule(nn.Module):
 
-    def __init__(self, latent_dim: int, num_hiddens: int, output_dim: int):
+    def __init__(self, encoder_output_dim: int, num_hiddens: int, output_dim: int):
         super(LocationModule, self).__init__()
-        self.fc_1 = nn.Linear(latent_dim * num_hiddens, 1000)
+        self.encoder_output_dim = encoder_output_dim
+        self.fc_1 = nn.Linear(encoder_output_dim * num_hiddens, 1000)
         self.relu1 = nn.ReLU()
         self.fc_2 = nn.Linear(1000, 100)
         self.relu2 = nn.ReLU()
