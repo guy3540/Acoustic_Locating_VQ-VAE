@@ -134,13 +134,14 @@ def train_location(vae_model:ConvolutionalVQVAE, location_model, optimizer, num_
 
     train_res_recon_error_smooth = savgol_filter(train_location_error, 201, 7)
 
-    f = plt.figure(figsize=(16, 8))
-    ax = f.add_subplot(1, 2, 1)
+    f = plt.figure()
+    ax = f.add_subplot(1, 1, 1)
     ax.plot(train_res_recon_error_smooth)
     ax.set_yscale('log')
     ax.set_title('Smoothed NMSE.')
     ax.set_xlabel('iteration')
     torch.save(location_model, 'location_model.pt')
+    plt.show()
 
 
 def run_location_training():
