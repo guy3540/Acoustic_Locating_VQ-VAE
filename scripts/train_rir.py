@@ -124,5 +124,5 @@ if __name__ == '__main__':
                                commitment_cost, num_embeddings, use_jitter=use_jitter).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, amsgrad=False)
-    train(model=model, optimizer=optimizer, num_training_updates=100000)
+    train(model=model, optimizer=optimizer, num_training_updates=15000)
     print("init")
