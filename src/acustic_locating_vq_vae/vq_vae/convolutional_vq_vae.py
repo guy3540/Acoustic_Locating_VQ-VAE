@@ -90,3 +90,9 @@ class ConvolutionalVQVAE(nn.Module):
         loss, quantized, perplexity, _ = self._vq(z)
         x_recon = self._decoder(quantized)
         return loss, x_recon, perplexity
+
+    def get_latent_representation(self, x):
+        z = self._encoder(x)
+        z = self._pre_vq_conv(z)
+        return self._vq(z)
+

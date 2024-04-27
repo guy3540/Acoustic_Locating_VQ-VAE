@@ -15,6 +15,7 @@ from acustic_locating_vq_vae.rir_dataset_generator.rir_dataset import RIR_DATASE
 from acustic_locating_vq_vae.visualization import plot_spectrogram
 
 from acustic_locating_vq_vae.vq_vae.convolutional_vq_vae import ConvolutionalVQVAE
+from acustic_locating_vq_vae.vq_vae.location_model.location_model import LocationModule
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -36,7 +37,7 @@ def rir_data_preprocessing(data):
     return spectrograms, source_coordinates_list, mic_list, room_list, fs_list
 
 
-def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
+def train_vq_vae(model: ConvolutionalVQVAE, optimizer, num_training_updates):
     model.train()
 
     train_res_recon_error = []
@@ -74,7 +75,8 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
         if (i + 1) % 500 == 0:
             fig, (ax1, ax2) = plt.subplots(1, 2)
             plot_spectrogram(torch.squeeze(x[0]).detach().to('cpu'), title="Spectrogram - input", ylabel="mag", ax=ax1)
-            plot_spectrogram(torch.squeeze(reconstructed_x[0]).detach().to('cpu'), title="Spectrogram - reconstructed", ylabel="mag",
+            plot_spectrogram(torch.squeeze(reconstructed_x[0]).detach().to('cpu'), title="Spectrogram - reconstructed",
+                             ylabel="mag",
                              ax=ax2)
             plt.show()
 
@@ -96,9 +98,70 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
     torch.save(model, 'model_rir.pt')
 
 
-if __name__ == '__main__':
+def train_location(vae_model:ConvolutionalVQVAE, location_model, optimizer, num_training_updates, train_loader):
+    location_model.train()
+    vae_model.eval()
+
+    train_location_error = []
+
+    # waveform B,C,S
+    for i in xrange(num_training_updates):
+        x, source_coordinates, mic, room, fs = next(iter(train_loader))
+        source_coordinates = source_coordinates.to(device)
+        x = x.type(torch.FloatTensor)
+        x = x.to(device)
+        x = (x - torch.mean(x, dim=1, keepdim=True)) / (torch.std(x, dim=1, keepdim=True) + 1e-8)
+        x = torch.unsqueeze(x, 1)
+
+        optimizer.zero_grad()
+        loss, quantized, perplexity, encodings = vae_model.get_latent_representation(x)
+        location = location_model(torch.flatten(encodings))
+
+        loss = F.mse_loss(location, torch.squeeze(source_coordinates).float())
+        loss.backward()
+
+        optimizer.step()
+
+        train_location_error.append(loss.item())
+
+        if (i + 1) % 100 == 0:
+            print('%d iterations' % (i + 1))
+            print('recon_error: %.3f' % np.mean(train_location_error[-100:]))
+            print(location)
+            print(torch.squeeze(source_coordinates).float())
+            print()
+
+
+    train_res_recon_error_smooth = savgol_filter(train_location_error, 201, 7)
+
+    f = plt.figure(figsize=(16, 8))
+    ax = f.add_subplot(1, 2, 1)
+    ax.plot(train_res_recon_error_smooth)
+    ax.set_yscale('log')
+    ax.set_title('Smoothed NMSE.')
+    ax.set_xlabel('iteration')
+    torch.save(location_model, 'location_model.pt')
+
+
+def run_location_training():
     DATASET_PATH = Path(os.getcwd()) / 'rir_dataset_generator' / 'dev_data'
-    BATCH_SIZE = 64
+    encoder_output_dim = 101
+    num_embeddings = 512
+    BATCH_SIZE = 1
+    num_training_updates = 15000
+
+    train_data = RIR_DATASET(DATASET_PATH)
+    train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
+    vae_model = torch.load('model_rir.pt').to(device)
+    location_model = LocationModule(encoder_output_dim, num_embeddings, 3).to(device)
+    optimizer = torch.optim.Adam(location_model.parameters(), lr=1e-3)
+
+    train_location(vae_model, location_model, optimizer, num_training_updates, train_loader)
+
+
+def run_rir_training():
+    DATASET_PATH = Path(os.getcwd()) / 'rir_dataset_generator' / 'dev_data'
+    BATCH_SIZE = 1
     LR = 1e-3
     # SAMPLING_RATE = 16e3
     # NFFT = int(SAMPLING_RATE * 0.025)
@@ -124,5 +187,8 @@ if __name__ == '__main__':
                                commitment_cost, num_embeddings, use_jitter=use_jitter).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, amsgrad=False)
-    train(model=model, optimizer=optimizer, num_training_updates=15000)
-    print("init")
+    train_vq_vae(model=model, optimizer=optimizer, num_training_updates=15000)
+
+
+if __name__ == '__main__':
+    run_location_training()
