@@ -9,6 +9,7 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from six.moves import xrange
 
+from acustic_locating_vq_vae.data_preprocessing import combine_tensors_with_min_dim
 from acustic_locating_vq_vae.visualization import plot_spectrogram
 from acustic_locating_vq_vae.vq_vae.convolutional_vq_vae import ConvolutionalVQVAE
 
@@ -41,44 +42,8 @@ audio_transformer = torchaudio.transforms.Spectrogram(n_fft=NFFT, hop_length=HOP
 # audio_transformer = torchaudio.transforms.MelSpectrogram(n_fft=NFFT, sample_rate=SAMPLING_RATE,hop_length=HOP_LENGTH,n_mels=IN_FEATURE_SIZE)
 # audio_transformer = torchaudio.transforms.MelSpectrogram(n_fft=NFFT, sample_rate=SAMPLING_RATE,hop_length=HOP_LENGTH,n_mels=IN_FEATURE_SIZE, window_fn=torch.hann_window, power=1.0, center=True)
 
-def combine_tensors_with_min_dim(tensor_list):
-    """
-  Combines a list of PyTorch tensors with shapes (1, H, x1), (1, H, x2), ..., (1, H, xN)
-  into a new tensor of shape (N, H, X), where X is the minimum dimension among x1, x2, ..., xN.
 
-  Args:
-      tensor_list: A list of PyTorch tensors with the same height (H).
-
-  Returns:
-      A new tensor of shape (N, H, X), where X is the minimum dimension.
-
-  Raises:
-      ValueError: If the tensors in the list do not have the same height (H).
-  """
-
-    if not tensor_list:
-        raise ValueError("Input tensor list cannot be empty")
-
-    # Check if all tensors have the same height (H)
-    H = tensor_list[0].size(1)
-    for tensor in tensor_list:
-        if tensor.size(1) != H:
-            raise ValueError("All tensors in the list must have the same height (H)")
-
-    # Get the minimum dimension (X) across all tensors in the list
-    min_dim = min(tensor.size(2) for tensor in tensor_list)
-
-    # Create a new tensor to store the combined data
-    combined_tensor = torch.zeros((len(tensor_list), H, min_dim))
-
-    # Fill the combined tensor with data from the input tensors, selecting the minimum value for each element
-    for i, tensor in enumerate(tensor_list):
-        combined_tensor[i, :, :] = tensor[:, :, :min_dim]
-
-    return combined_tensor
-
-
-def data_preprocessing(data):
+def speech_data_preprocessing(data):
     spectrograms = []
     for (waveform, sample_rate, _, _, _, _) in data:
         spec = audio_transformer(waveform)
@@ -148,7 +113,7 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
 
 if __name__ == '__main__':
     train_dataset = torchaudio.datasets.LIBRISPEECH(DATASET_PATH, url='train-clean-100', download=True)
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=lambda x: data_preprocessing(x))
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=lambda x: speech_data_preprocessing(x))
 
     model = ConvolutionalVQVAE(in_channels, num_hiddens, embedding_dim, num_residual_layers, num_residual_hiddens,
                                commitment_cost, num_embeddings).to(device)

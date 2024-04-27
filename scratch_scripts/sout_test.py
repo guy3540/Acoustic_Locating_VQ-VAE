@@ -1,6 +1,6 @@
 import torch
 import librosa
-from scripts.main import data_preprocessing
+from scripts.main import speech_data_preprocessing
 import os
 from torch.utils.data import DataLoader
 import torchaudio
@@ -26,7 +26,7 @@ def sound_from_sample(data, fs, filename):
 
 test_data = torchaudio.datasets.LIBRISPEECH(dataset_path, url='test-clean', download=True)
 test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True,
-                         collate_fn=lambda x: data_preprocessing(x))
+                         collate_fn=lambda x: speech_data_preprocessing(x))
 
 model.eval()
 

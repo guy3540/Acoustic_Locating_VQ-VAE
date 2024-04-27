@@ -8,7 +8,6 @@ import torch
 from torch.utils.data import DataLoader
 from pathlib import Path
 
-from acustic_locating_vq_vae.visualization import plot_spectrogram
 
 C = 340
 fs = 16e3
@@ -17,7 +16,7 @@ room_dimensions = [4, 5, 3]
 reverberation_time = 0.4
 n_sample = int(reverberation_time * fs)
 R = 1
-DATASET_SIZE = 10
+DATASET_SIZE = 100
 Z_LOC_SOURCE = 1
 
 
@@ -60,12 +59,11 @@ def data_preprocessing(data):
     )
 
     for (waveform, sample_rate, _, _, _, _) in data:
-        spec_signal = audio_transformer(waveform)
+        spec_signal = np.squeeze(audio_transformer(waveform))
         waveform_h = ss.convolve(waveform.squeeze(), h_RIR.squeeze(), mode='same')
         spec_with_h = audio_transformer(torch.from_numpy(waveform_h))
 
-        spec = np.divide(spec_signal, spec_with_h)
-        spec_final = np.divide(spec, np.abs(spec).max())
+        spec_final = torch.sum(spec_with_h * np.conjugate(spec_signal), dim =1) / (torch.sum(spec_signal*np.conjugate(spec_signal), dim=1)  + 1e-8)
 
     return spec_final, sample_rate, theta  # transcript, speaker_id, chapter_id, utterance_id
 

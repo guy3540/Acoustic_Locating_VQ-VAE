@@ -9,6 +9,8 @@ from torch.utils.data import DataLoader
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from six.moves import xrange
+
+from acustic_locating_vq_vae.data_preprocessing import combine_tensors_with_min_dim
 from acustic_locating_vq_vae.rir_dataset_generator.rir_dataset import RIR_DATASET
 from acustic_locating_vq_vae.visualization import plot_spectrogram
 
@@ -17,30 +19,21 @@ from acustic_locating_vq_vae.vq_vae.convolutional_vq_vae import ConvolutionalVQV
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-DATASET_PATH = Path(os.getcwd()) / 'rir_dataset_generator'/ 'dev_data'
-BATCH_SIZE = 1
-LR = 1e-3
-SAMPLING_RATE = 16e3
-NFFT = int(SAMPLING_RATE * 0.025)
-IN_FEATURE_SIZE = int((NFFT / 2) + 1)
-HOP_LENGTH = int(SAMPLING_RATE * 0.01)
+def rir_data_preprocessing(data):
+    spectrograms = []
+    source_coordinates_list = []
+    mic_list = []
+    room_list = []
+    fs_list = []
+    for (spec, source_coordinates, mic, room, fs) in data:
+        spectrograms.append(torch.unsqueeze(torch.from_numpy(spec), dim=0))
+        source_coordinates_list.append(source_coordinates)
+        mic_list.append(mic)
+        room_list.append(room)
+        fs_list.append(fs)
+    spectrograms = combine_tensors_with_min_dim(spectrograms)
 
-# CONV VQVAE
-output_features_dim = IN_FEATURE_SIZE
-num_hiddens = 40
-in_channels = IN_FEATURE_SIZE
-num_residual_layers = 10
-num_residual_hiddens = 20
-embedding_dim = 3
-num_embeddings = 5  # The higher this value, the higher the capacity in the information bottleneck.
-commitment_cost = 0.25  # as recommended in VQ VAE article
-use_jitter = False
-jitter_probability = 0.12
-
-audio_transformer = torchaudio.transforms.Spectrogram(n_fft=NFFT, hop_length=HOP_LENGTH, power=1, center=True, pad=0, normalized=True)
-
-train = RIR_DATASET(DATASET_PATH)
-train_loader = DataLoader(train, batch_size=BATCH_SIZE, shuffle=True)
+    return spectrograms, source_coordinates_list, mic_list, room_list, fs_list
 
 
 def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
@@ -54,7 +47,8 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
         x, source_coordinates, mic, room, fs = next(iter(train_loader))
         x = x.type(torch.FloatTensor)
         x = x.to(device)
-        x = torch.squeeze(x,0)
+        x = (x - torch.mean(x, dim=1, keepdim=True)) / (torch.std(x, dim=1, keepdim=True) + 1e-8)
+        x = torch.unsqueeze(x, 1)
 
         optimizer.zero_grad()
         vq_loss, reconstructed_x, perplexity = model(x)
@@ -79,8 +73,8 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
             print()
         if (i + 1) % 500 == 0:
             fig, (ax1, ax2) = plt.subplots(1, 2)
-            plot_spectrogram(x[0].detach().to('cpu'), title="Spectrogram - input", ylabel="freq", ax=ax1)
-            plot_spectrogram(reconstructed_x[0].detach().to('cpu'), title="Spectrogram - reconstructed", ylabel="freq",
+            plot_spectrogram(torch.squeeze(x[0]).detach().to('cpu'), title="Spectrogram - input", ylabel="mag", ax=ax1)
+            plot_spectrogram(torch.squeeze(reconstructed_x[0]).detach().to('cpu'), title="Spectrogram - reconstructed", ylabel="mag",
                              ax=ax2)
             plt.show()
 
@@ -101,10 +95,34 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
     plt.show()
     torch.save(model, 'model_rir.pt')
 
+
 if __name__ == '__main__':
+    DATASET_PATH = Path(os.getcwd()) / 'rir_dataset_generator' / 'dev_data'
+    BATCH_SIZE = 64
+    LR = 1e-3
+    # SAMPLING_RATE = 16e3
+    # NFFT = int(SAMPLING_RATE * 0.025)
+    IN_FEATURE_SIZE = 1
+    # HOP_LENGTH = int(SAMPLING_RATE * 0.01)
+
+    # CONV VQVAE
+    output_features_dim = IN_FEATURE_SIZE
+    num_hiddens = 40
+    in_channels = IN_FEATURE_SIZE
+    num_residual_layers = 2
+    num_residual_hiddens = 20
+    embedding_dim = 40
+    num_embeddings = 512  # The higher this value, the higher the capacity in the information bottleneck.
+    commitment_cost = 0.25  # as recommended in VQ VAE article
+    use_jitter = False
+    jitter_probability = 0.12
+
+    train_data = RIR_DATASET(DATASET_PATH)
+    train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
 
     model = ConvolutionalVQVAE(in_channels, num_hiddens, embedding_dim, num_residual_layers, num_residual_hiddens,
                                commitment_cost, num_embeddings, use_jitter=use_jitter).to(device)
+
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, amsgrad=False)
-    train(model=model, optimizer=optimizer, num_training_updates=15000)
+    train(model=model, optimizer=optimizer, num_training_updates=100000)
     print("init")
