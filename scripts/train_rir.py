@@ -98,7 +98,7 @@ def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_trainin
     torch.save(model, 'model_rir.pt')
 
 
-def train_location(vae_model: ConvolutionalVQVAE, location_model, optimizer, num_training_updates, train_loader):
+def train_location(vae_model: ConvolutionalVQVAE, location_model, optimizer, num_training_updates, train_loader, test_data):
     vae_model.eval()
     location_model.train()
 
@@ -128,30 +128,26 @@ def train_location(vae_model: ConvolutionalVQVAE, location_model, optimizer, num
 
         train_location_error.append(loss.item())
 
+        mea_test_error = evaluate_location_model(test_data, location_model)
+        location_model.train()
+        test_location_error.append(mea_test_error)
+
         if (i + 1) % 100 == 0:
             print('%d iterations' % (i + 1))
             print('location error train: %.3f' % np.mean(train_location_error[-100:]))
-            mea_test_error = evaluate_model(location_model)
-            location_model.train()
-            print('location error test: %.3f' % mea_test_error)
+            print('location error test: %.3f' % np.mean(test_location_error[-100:]))
             print()
-            test_location_error.append(mea_test_error)
 
-    train_res_recon_error_smooth = savgol_filter(train_location_error, 201, 7)
-    test_location_error_smooth = savgol_filter(test_location_error, 201, 7)
 
     f = plt.figure()
-    ax = f.add_subplot(2, 1, 1)
-    ax.plot(train_res_recon_error_smooth)
+    ax = f.add_subplot(1, 1, 1)
+    ax.plot(train_location_error, label='train_dataset')
+    ax.plot(test_location_error, label='test_dataset')
+    ax.legend()
     ax.set_yscale('log')
-    ax.set_title('Smoothed MSE. Train')
+    ax.set_title('location estimation, Train vs Test error')
     ax.set_xlabel('iteration')
 
-    ax = f.add_subplot(2, 1, 2)
-    ax.plot(test_location_error_smooth)
-    ax.set_yscale('log')
-    ax.set_title('Smoothed MSE. TEST')
-    ax.set_xlabel('iteration/100')
 
     torch.save(location_model, 'location_model.pt')
     plt.show()
@@ -162,28 +158,29 @@ def run_location_training():
     encoder_output_dim = 101
     num_embeddings = 512
     BATCH_SIZE = 64
-    num_training_updates = 15000
+    num_training_updates = 1500
+    train_percent = 0.95
 
-    train_data = RIR_DATASET(DATASET_PATH)
+    dataset = RIR_DATASET(DATASET_PATH)
+    dataset_size = len(dataset)
+    train_data, test_data = torch.utils.data.random_split(dataset, [int(dataset_size*train_percent), int(dataset_size*(1-train_percent))])
+
     train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
     vae_model = torch.load('model_rir.pt').to(device)
     location_model = LocationModule(encoder_output_dim, num_embeddings, 3).to(device)
     optimizer = torch.optim.Adam(location_model.parameters(), lr=1e-3)
 
-    train_location(vae_model, location_model, optimizer, num_training_updates, train_loader)
+    train_location(vae_model, location_model, optimizer, num_training_updates, train_loader, test_data)
 
 
 def run_rir_training():
     DATASET_PATH = Path(os.getcwd()) / 'rir_dataset_generator' / 'dev_data'
     BATCH_SIZE = 64
     LR = 1e-3
-    # SAMPLING_RATE = 16e3
-    # NFFT = int(SAMPLING_RATE * 0.025)
     IN_FEATURE_SIZE = 1
-    # HOP_LENGTH = int(SAMPLING_RATE * 0.01)
+    num_training_updates = 15000
 
     # CONV VQVAE
-    output_features_dim = IN_FEATURE_SIZE
     num_hiddens = 40
     in_channels = IN_FEATURE_SIZE
     num_residual_layers = 2
@@ -192,7 +189,6 @@ def run_rir_training():
     num_embeddings = 512  # The higher this value, the higher the capacity in the information bottleneck.
     commitment_cost = 0.25  # as recommended in VQ VAE article
     use_jitter = False
-    jitter_probability = 0.12
 
     train_data = RIR_DATASET(DATASET_PATH)
     train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
@@ -201,22 +197,18 @@ def run_rir_training():
                                commitment_cost, num_embeddings, use_jitter=use_jitter).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, amsgrad=False)
-    train_vq_vae(model=model, optimizer=optimizer, train_loader=train_loader, num_training_updates=15000)
+    train_vq_vae(model=model, optimizer=optimizer, train_loader=train_loader, num_training_updates=num_training_updates)
 
 
-def evaluate_model(location_model=torch.load('location_model.pt').to(device)):
-    DATASET_PATH = Path(os.getcwd()) / 'rir_dataset_generator' / 'eval_data'
-    test_data = RIR_DATASET(DATASET_PATH)
-    BATCH_SIZE = 1
+def evaluate_location_model(test_data, location_model=torch.load('location_model.pt').to(device)):
+    BATCH_SIZE = 2
     test_loader = DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=True)
     vae_model = torch.load('model_rir.pt').to(device)
-    # location_model = torch.load('location_model.pt').to(device)
 
     vae_model.eval()
     location_model.eval()
     loss_list = []
-    for i in range(100):
-        x, source_coordinates, mic, room, fs = next(iter(test_loader))
+    for i , (x, source_coordinates, mic, room, fs) in enumerate(test_loader):
         source_coordinates = torch.squeeze(source_coordinates).to(device)
         x = x.type(torch.FloatTensor)
         x = x.to(device)
@@ -224,13 +216,13 @@ def evaluate_model(location_model=torch.load('location_model.pt').to(device)):
         x = torch.unsqueeze(x, 1)
 
         loss, quantized, perplexity, encodings = vae_model.get_latent_representation(x)
-        location = location_model(torch.flatten(encodings))
+        encodings = encodings.view(x.size(0), quantized.size(2), encodings.size(1))
+        encodings = encodings.view(x.size(0), quantized.size(2) * encodings.size(2))
+        location = location_model(encodings)
+
         loss = F.mse_loss(location, source_coordinates.float())
         loss_list.append(loss.item())
-        # print(loss_list[-1])
-        # print(
-        #     f"original location: {source_coordinates[0].item():.2f},{source_coordinates[1].item():.2f},{source_coordinates[2].item():.2f},"
-        #     f" estimated location: {location[0].item():.2f},{location[1].item():.2f},{location[2].item():.2f}")
+
     mean_loss = torch.mean(torch.as_tensor(loss_list))
     return mean_loss
 
@@ -238,4 +230,4 @@ def evaluate_model(location_model=torch.load('location_model.pt').to(device)):
 if __name__ == '__main__':
     # run_rir_training()
     run_location_training()
-    # evaluate_model()
+
