@@ -109,7 +109,7 @@ def train_location(vae_model: ConvolutionalVQVAE, location_model, optimizer, num
     for i in xrange(num_training_updates):
 
         x, source_coordinates, mic, room, fs = next(iter(train_loader))
-        source_coordinates = torch.as_tensor(source_coordinates).to(device)
+        source_coordinates = torch.as_tensor(np.array(source_coordinates)).to(device)
         x = x.type(torch.FloatTensor)
         x = x.to(device)
         x = (x - torch.mean(x, dim=1, keepdim=True)) / (torch.std(x, dim=1, keepdim=True) + 1e-8)
