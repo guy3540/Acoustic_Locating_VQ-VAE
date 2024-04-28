@@ -60,9 +60,12 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
     train_res_recon_error = []
     train_res_perplexity = []
 
+    fig, (ax1, ax2) = plt.subplots(1, 2)
+
     # waveform B,C,S
     for i in xrange(num_training_updates):
         (x, _) = next(iter(train_loader))
+        x = (x - torch.mean(x, dim=1, keepdim=True)) / (torch.std(x, dim=1, keepdim=True) + 1e-8)
         x = x.to(device)
 
         optimizer.zero_grad()
@@ -87,8 +90,7 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
             print('recon_error: %.3f' % np.mean(train_res_recon_error[-100:]))
             print('perplexity: %.3f' % np.mean(train_res_perplexity[-100:]))
             print()
-        if (i + 1) % 10 == 0:
-            fig, (ax1, ax2) = plt.subplots(1, 2)
+        if (i + 1) % 1000 == 0:
             plot_spectrogram(x[0].detach().to('cpu'), title="Spectrogram - input", ylabel="freq", ax=ax1)
             plot_spectrogram(reconstructed_x[0].detach().to('cpu'), title="Spectrogram - reconstructed", ylabel="freq",
                              ax=ax2)
@@ -109,7 +111,8 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
     ax.set_title('Smoothed Average codebook usage (perplexity).')
     ax.set_xlabel('iteration')
     plt.show()
-    torch.save(model, 'model.pt')
+    torch.save(model, '../models/model_speech.pt')
+    torch.save(model.state_dict(), '../models/model_speech_state_dict.pt')
 
 if __name__ == '__main__':
     train_dataset = torchaudio.datasets.LIBRISPEECH(DATASET_PATH, url='train-clean-100', download=True)
