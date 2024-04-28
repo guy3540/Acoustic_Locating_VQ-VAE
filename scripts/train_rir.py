@@ -49,7 +49,6 @@ def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_trainin
         x = x.type(torch.FloatTensor)
         x = x.to(device)
         x = (x - torch.mean(x, dim=1, keepdim=True)) / (torch.std(x, dim=1, keepdim=True) + 1e-8)
-        x = torch.unsqueeze(x, 1)
 
         optimizer.zero_grad()
         vq_loss, reconstructed_x, perplexity = model(x)
@@ -96,6 +95,7 @@ def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_trainin
     ax.set_xlabel('iteration')
     plt.show()
     torch.save(model, 'model_rir.pt')
+    torch.save(model.state_dict(), 'model_rir_state_dict.pt')
 
 
 def train_location(vae_model: ConvolutionalVQVAE, location_model, optimizer, num_training_updates, train_loader, test_data):
@@ -109,11 +109,10 @@ def train_location(vae_model: ConvolutionalVQVAE, location_model, optimizer, num
     for i in xrange(num_training_updates):
 
         x, source_coordinates, mic, room, fs = next(iter(train_loader))
-        source_coordinates = source_coordinates.to(device)
+        source_coordinates = torch.as_tensor(np.array(source_coordinates)).to(device)
         x = x.type(torch.FloatTensor)
         x = x.to(device)
         x = (x - torch.mean(x, dim=1, keepdim=True)) / (torch.std(x, dim=1, keepdim=True) + 1e-8)
-        x = torch.unsqueeze(x, 1)
 
         optimizer.zero_grad()
         loss, quantized, perplexity, encodings = vae_model.get_latent_representation(x)
@@ -150,6 +149,7 @@ def train_location(vae_model: ConvolutionalVQVAE, location_model, optimizer, num
 
 
     torch.save(location_model, 'location_model.pt')
+    torch.save(location_model.state_dict(), 'location_model_state_dict.pt')
     plt.show()
 
 
@@ -165,7 +165,8 @@ def run_location_training():
     dataset_size = len(dataset)
     train_data, test_data = torch.utils.data.random_split(dataset, [int(dataset_size*train_percent), int(dataset_size*(1-train_percent))])
 
-    train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
+    train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True,
+                              collate_fn=lambda x: rir_data_preprocessing(x))
     vae_model = torch.load('model_rir.pt').to(device)
     location_model = LocationModule(encoder_output_dim, num_embeddings, 3).to(device)
     optimizer = torch.optim.Adam(location_model.parameters(), lr=1e-3)
@@ -177,7 +178,7 @@ def run_rir_training():
     DATASET_PATH = Path(os.getcwd()) / 'rir_dataset_generator' / 'dev_data'
     BATCH_SIZE = 64
     LR = 1e-3
-    IN_FEATURE_SIZE = 1
+    IN_FEATURE_SIZE = 201
     num_training_updates = 15000
 
     # CONV VQVAE
@@ -191,7 +192,8 @@ def run_rir_training():
     use_jitter = False
 
     train_data = RIR_DATASET(DATASET_PATH)
-    train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
+    train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True,
+                              collate_fn=lambda x: rir_data_preprocessing(x))
 
     model = ConvolutionalVQVAE(in_channels, num_hiddens, embedding_dim, num_residual_layers, num_residual_hiddens,
                                commitment_cost, num_embeddings, use_jitter=use_jitter).to(device)

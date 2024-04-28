@@ -21,7 +21,7 @@ Z_LOC_SOURCE = 1
 
 
 LibriSpeech_PATH = os.path.join(os.getcwd(), 'data')
-DATASET_DEST_PATH = os.path.join(os.getcwd(), 'rir_dataset_generator', 'eval_data')
+DATASET_DEST_PATH = os.path.join(os.getcwd(), 'rir_dataset_generator', 'dev_data')
 Path(DATASET_DEST_PATH).mkdir(parents=True, exist_ok=True)
 
 NFFT = int(fs * 0.025)
@@ -63,9 +63,12 @@ def data_preprocessing(data):
         waveform_h = ss.convolve(waveform.squeeze(), h_RIR.squeeze(), mode='same')
         spec_with_h = audio_transformer(torch.from_numpy(waveform_h))
 
-        spec_final = torch.sum(spec_with_h * np.conjugate(spec_signal), dim =1) / (torch.sum(spec_signal*np.conjugate(spec_signal), dim=1)  + 1e-8)
+        spec = np.divide(spec_signal, spec_with_h+1e-8)
+        spec_final = np.divide(spec, np.abs(spec).max())
 
-    return spec_final, sample_rate, theta  # transcript, speaker_id, chapter_id, utterance_id
+        winner_est = torch.sum(spec_with_h * np.conjugate(spec_signal), dim =1) / (torch.sum(spec_signal*np.conjugate(spec_signal), dim=1)  + 1e-8)
+
+    return spec_final, sample_rate, theta, winner_est  # transcript, speaker_id, chapter_id, utterance_id
 
 
 train = torchaudio.datasets.LIBRISPEECH(LibriSpeech_PATH, url='train-clean-100', download=True)
@@ -75,7 +78,7 @@ theta_array = []
 
 for i_sample in range(DATASET_SIZE):
     print('Generating sample: ', i_sample)
-    (spec_final, sample_rate, theta) = next(iter(train_loader))
+    (spec_final, sample_rate, theta, winner_est) = next(iter(train_loader))
     filename = os.path.join(DATASET_DEST_PATH, f'{i_sample}.pt')
     theta_array.append(theta)
     scaled = np.int16(spec_final / np.abs(spec_final).max() * 32767)
