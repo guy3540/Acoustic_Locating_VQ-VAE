@@ -16,61 +16,10 @@ from acustic_locating_vq_vae.visualization import plot_spectrogram
 
 from acustic_locating_vq_vae.vq_vae.convolutional_vq_vae import ConvolutionalVQVAE
 from acustic_locating_vq_vae.vq_vae.location_model.location_model import LocationModule
+from acustic_locating_vq_vae.data_preprocessing import rir_data_preprocess_permute_normalize_and_cut
+from acustic_locating_vq_vae.data_preprocessing import rir_data_preprocessing
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-def rir_data_preprocessing(data):
-    spectrograms = []
-    winner_est_list = []
-    source_coordinates_list = []
-    mic_list = []
-    room_list = []
-    fs_list = []
-    for (spec, winner_est, source_coordinates, mic, room, fs) in data:
-        if spec.shape[1] < 500:
-            continue
-        else:
-            ispec = spec[:, :500]
-        spectrograms.append(torch.unsqueeze(torch.from_numpy(ispec), dim=0))
-        source_coordinates_list.append(source_coordinates)
-        mic_list.append(mic)
-        room_list.append(room)
-        fs_list.append(fs)
-        winner_est_list.append(winner_est)
-    spectrograms = combine_tensors_with_min_dim(spectrograms)
-
-    return spectrograms, torch.as_tensor(
-        np.asarray(winner_est_list)), source_coordinates_list, mic_list, room_list, fs_list
-
-
-def rir_data_preprocess_permute_normalize_and_cut(data, max_size:int =500):
-    spectrograms = []
-    winner_est_list = []
-    source_coordinates_list = []
-    mic_list = []
-    room_list = []
-    fs_list = []
-    for (spec, winner_est, source_coordinates, mic, room, fs) in zip(*data):
-        if spec.shape[1] < max_size:
-            continue
-        else:
-            ispec = spec[:, :max_size]
-            ispec = (ispec - torch.mean(ispec, dim=1, keepdim=True)) / (torch.std(ispec, dim=1, keepdim=True) + 1e-8)
-            ispec = torch.permute(ispec, [1, 0])
-            ispec = ispec.type(torch.FloatTensor)
-        spectrograms.append(torch.unsqueeze(ispec, dim=0))
-        source_coordinates_list.append(source_coordinates)
-        mic_list.append(mic)
-        room_list.append(room)
-        fs_list.append(fs)
-        winner_est = winner_est.type(torch.FloatTensor)
-        winner_est = (winner_est - torch.mean(winner_est)) / (torch.std(winner_est) + 1e-8)
-        winner_est = torch.unsqueeze(winner_est, 0)
-        winner_est_list.append(winner_est)
-    spectrograms = combine_tensors_with_min_dim(spectrograms)
-
-    return spectrograms, torch.stack(winner_est_list,0), source_coordinates_list, mic_list, room_list, fs_list
 
 
 def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_training_updates):

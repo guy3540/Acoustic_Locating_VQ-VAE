@@ -12,6 +12,7 @@ from six.moves import xrange
 from acustic_locating_vq_vae.data_preprocessing import combine_tensors_with_min_dim
 from acustic_locating_vq_vae.visualization import plot_spectrogram
 from acustic_locating_vq_vae.vq_vae.convolutional_vq_vae import ConvolutionalVQVAE
+from acustic_locating_vq_vae.data_preprocessing import speech_data_preprocessing
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -41,17 +42,6 @@ audio_transformer = torchaudio.transforms.Spectrogram(n_fft=NFFT, hop_length=HOP
                                                       power=1, center=True, pad=0, normalized=True)
 # audio_transformer = torchaudio.transforms.MelSpectrogram(n_fft=NFFT, sample_rate=SAMPLING_RATE,hop_length=HOP_LENGTH,n_mels=IN_FEATURE_SIZE)
 # audio_transformer = torchaudio.transforms.MelSpectrogram(n_fft=NFFT, sample_rate=SAMPLING_RATE,hop_length=HOP_LENGTH,n_mels=IN_FEATURE_SIZE, window_fn=torch.hann_window, power=1.0, center=True)
-
-
-def speech_data_preprocessing(data):
-    spectrograms = []
-    for (waveform, sample_rate, _, _, _, _) in data:
-        spec = audio_transformer(waveform)
-        spectrograms.append(spec)
-
-    spectrograms = combine_tensors_with_min_dim(spectrograms)
-
-    return spectrograms, sample_rate,  # transcript, speaker_id, chapter_id, utterance_id
 
 
 def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
@@ -116,7 +106,8 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
 
 if __name__ == '__main__':
     train_dataset = torchaudio.datasets.LIBRISPEECH(DATASET_PATH, url='train-clean-100', download=True)
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=lambda x: speech_data_preprocessing(x))
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,
+                              collate_fn=lambda x: speech_data_preprocessing(x, audio_transformer))
 
     model = ConvolutionalVQVAE(in_channels, num_hiddens, embedding_dim, num_residual_layers, num_residual_hiddens,
                                commitment_cost, num_embeddings).to(device)
