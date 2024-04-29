@@ -27,10 +27,10 @@ LR = 1e-3
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class acoustic_location_model(nn.Module):
+class EchoedSpeechReconModel(nn.Module):
     def __init__(self, rir_model, speech_model, out_channels, num_hiddens, num_residual_layers,
                  num_residual_hiddens, use_jitter):
-        super(acoustic_location_model, self).__init__()
+        super(EchoedSpeechReconModel, self).__init__()
 
         self.rir_model = rir_model.to(device)
         self.speech_model = speech_model.to(device)
@@ -72,8 +72,8 @@ train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True,
 sample_to_init, source_coordinates, mic, room, fs = next(iter(train_loader))
 out_channels = sample_to_init.shape[1]
 
-model = acoustic_location_model(rir_model, speech_model, out_channels, num_hiddens, num_residual_layers,
-                                num_residual_hiddens, use_jitter).to(device)
+model = EchoedSpeechReconModel(rir_model, speech_model, out_channels, num_hiddens, num_residual_layers,
+                               num_residual_hiddens, use_jitter).to(device)
 
 optimizer = torch.optim.Adam(model.parameters(), lr=LR, amsgrad=False)
 
