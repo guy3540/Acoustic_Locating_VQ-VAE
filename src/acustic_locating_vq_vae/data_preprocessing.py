@@ -12,6 +12,7 @@ def speech_data_preprocessing(data, audio_transformer):
 
     return spectrograms, sample_rate,  # transcript, speaker_id, chapter_id, utterance_id
 
+
 def rir_data_preprocessing(data):
     spectrograms = []
     winner_est_list = []
