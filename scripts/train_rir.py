@@ -44,6 +44,35 @@ def rir_data_preprocessing(data):
         np.asarray(winner_est_list)), source_coordinates_list, mic_list, room_list, fs_list
 
 
+def rir_data_preprocess_permute_normalize_and_cut(data, max_size:int =500):
+    spectrograms = []
+    winner_est_list = []
+    source_coordinates_list = []
+    mic_list = []
+    room_list = []
+    fs_list = []
+    for (spec, winner_est, source_coordinates, mic, room, fs) in zip(*data):
+        if spec.shape[1] < max_size:
+            continue
+        else:
+            ispec = spec[:, :max_size]
+            ispec = (ispec - torch.mean(ispec, dim=1, keepdim=True)) / (torch.std(ispec, dim=1, keepdim=True) + 1e-8)
+            ispec = torch.permute(ispec, [1, 0])
+            ispec = ispec.type(torch.FloatTensor)
+        spectrograms.append(torch.unsqueeze(ispec, dim=0))
+        source_coordinates_list.append(source_coordinates)
+        mic_list.append(mic)
+        room_list.append(room)
+        fs_list.append(fs)
+        winner_est = winner_est.type(torch.FloatTensor)
+        winner_est = (winner_est - torch.mean(winner_est)) / (torch.std(winner_est) + 1e-8)
+        winner_est = torch.unsqueeze(winner_est, 0)
+        winner_est_list.append(winner_est)
+    spectrograms = combine_tensors_with_min_dim(spectrograms)
+
+    return spectrograms, torch.stack(winner_est_list,0), source_coordinates_list, mic_list, room_list, fs_list
+
+
 def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_training_updates):
     model.train()
 
@@ -53,13 +82,9 @@ def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_trainin
     # waveform B,C,S
     for i in xrange(num_training_updates):
         x, winner_est, source_coordinates, mic, room, fs = next(iter(train_loader))
-        x = x.type(torch.FloatTensor)
+        x, winner_est, source_coordinates, mic, room, fs = rir_data_preprocess_permute_normalize_and_cut((x, winner_est, source_coordinates, mic, room, fs))
+
         x = x.to(device)
-        x = (x - torch.mean(x, dim=1, keepdim=True)) / (torch.std(x, dim=1, keepdim=True) + 1e-8)
-        x = torch.permute(x, [0, 2, 1])
-        winner_est = winner_est.type(torch.FloatTensor)
-        winner_est = (winner_est - torch.mean(winner_est, dim=1, keepdim=True)) / (torch.std(winner_est, dim=1, keepdim=True) + 1e-8)
-        winner_est = torch.unsqueeze(winner_est,1)
         winner_est = winner_est.to(device)
 
         optimizer.zero_grad()
