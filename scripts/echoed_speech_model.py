@@ -17,10 +17,10 @@ rir_model = torch.load(os.path.join(os.path.dirname(__file__), '..', 'models', '
 speech_model = torch.load(os.path.join(os.path.dirname(__file__), '..', 'models', 'model_speech.pt'))
 
 BATCH_SIZE = 64
-num_training_updates = 100
+num_training_updates = 5000
 num_hiddens = 50
 num_residual_layers = 2
-num_residual_hiddens = 40
+num_residual_hiddens = 50
 use_jitter = True
 LR = 1e-3
 
@@ -122,3 +122,5 @@ for i in xrange(num_training_updates):
                          ylabel="mag",
                          ax=ax2)
         plt.show()
+
+torch.save(model, '../models/model_echoed_speech.pt')
