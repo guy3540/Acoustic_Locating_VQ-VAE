@@ -18,9 +18,9 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class ConvolutionalVQVAE(nn.Module):
 
     def __init__(self, in_channels: int, num_hiddens: int, embedding_dim: int, num_residual_layers: int, num_residual_hiddens: int,
-                 commitment_cost: float, num_embeddings: int, use_jitter: bool=True):
+                 commitment_cost: float, num_embeddings: int, use_jitter: bool=True, encoder_average_pooling: bool=False):
         super(ConvolutionalVQVAE, self).__init__()
-
+        self.encoder_average_pooling = encoder_average_pooling
         self._encoder = ConvolutionalEncoder(
             in_channels=in_channels,
             num_hiddens=num_hiddens,
@@ -87,6 +87,8 @@ class ConvolutionalVQVAE(nn.Module):
     def forward(self, x):
         z = self._encoder(x)
         z = self._pre_vq_conv(z)
+        if self.encoder_average_pooling:
+            z = torch.mean(z, dim=2, keepdim=True)
         loss, quantized, perplexity, _ = self._vq(z)
         x_recon = self._decoder(quantized)
         return loss, x_recon, perplexity

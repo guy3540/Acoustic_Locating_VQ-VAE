@@ -36,7 +36,7 @@ def rir_data_preprocessing(data):
         winner_est_list.append(winner_est)
     spectrograms = combine_tensors_with_min_dim(spectrograms)
 
-    return spectrograms, winner_est_list, source_coordinates_list, mic_list, room_list, fs_list
+    return spectrograms, torch.as_tensor(np.asarray(winner_est_list)), source_coordinates_list, mic_list, room_list, fs_list
 
 
 def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_training_updates):
@@ -55,11 +55,11 @@ def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_trainin
         optimizer.zero_grad()
         vq_loss, reconstructed_x, perplexity = model(x)
 
-        if not x.shape == reconstructed_x.shape:
-            reduction = reconstructed_x.shape[2] - x.shape[2]
-            recon_error = F.mse_loss(reconstructed_x[:, :, :-reduction], x)  # / data_variance
-        else:
-            recon_error = F.mse_loss(reconstructed_x, x)
+        # if not x.shape == reconstructed_x.shape:
+        #     reduction = reconstructed_x.shape[2] - x.shape[2]
+        #     recon_error = F.mse_loss(reconstructed_x[:, :, :-reduction], x)  # / data_variance
+        # else:
+        recon_error = F.mse_loss(reconstructed_x, winner_est)
         loss = recon_error + vq_loss
         loss.backward()
 
@@ -115,6 +115,7 @@ def train_location(vae_model: ConvolutionalVQVAE, location_model, optimizer, num
         x = x.type(torch.FloatTensor)
         x = x.to(device)
         x = (x - torch.mean(x, dim=1, keepdim=True)) / (torch.std(x, dim=1, keepdim=True) + 1e-8)
+
 
         optimizer.zero_grad()
         loss, quantized, perplexity, encodings = vae_model.get_latent_representation(x)
@@ -198,7 +199,8 @@ def run_rir_training():
                               collate_fn=lambda x: rir_data_preprocessing(x))
 
     model = ConvolutionalVQVAE(in_channels, num_hiddens, embedding_dim, num_residual_layers, num_residual_hiddens,
-                               commitment_cost, num_embeddings, use_jitter=use_jitter).to(device)
+                               commitment_cost, num_embeddings, use_jitter=use_jitter, encoder_average_pooling = True
+                               ).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, amsgrad=False)
     train_vq_vae(model=model, optimizer=optimizer, train_loader=train_loader, num_training_updates=num_training_updates)
