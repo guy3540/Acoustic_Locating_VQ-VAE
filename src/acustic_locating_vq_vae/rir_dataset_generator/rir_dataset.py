@@ -32,7 +32,7 @@ class RIR_DATASET(Dataset):
     def __getitem__(self, idx):
         item_filename = "{}.pt".format(idx)
         item_path = os.path.join(self.root_dir, item_filename)
-        item_data = torch.load(item_path)
+        spectrogram, winter_est = torch.load(item_path)
         room = self.room_dimensions
         mic = self.receiver_position
 
@@ -40,7 +40,7 @@ class RIR_DATASET(Dataset):
 
         source_coordinates = self.get_source_coordinates(item_theta)
 
-        return item_data, source_coordinates, mic, room, self.fs
+        return spectrogram, winter_est, source_coordinates, mic, room, self.fs
 
     def get_source_coordinates(self, theta):
 

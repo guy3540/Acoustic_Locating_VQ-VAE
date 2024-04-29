@@ -22,19 +22,55 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def rir_data_preprocessing(data):
     spectrograms = []
+    winner_est_list = []
     source_coordinates_list = []
     mic_list = []
     room_list = []
     fs_list = []
-    for (spec, source_coordinates, mic, room, fs) in data:
-        spectrograms.append(torch.unsqueeze(torch.from_numpy(spec), dim=0))
+    for (spec, winner_est, source_coordinates, mic, room, fs) in data:
+        if spec.shape[1] < 500:
+            continue
+        else:
+            ispec = spec[:, :500]
+        spectrograms.append(torch.unsqueeze(torch.from_numpy(ispec), dim=0))
         source_coordinates_list.append(source_coordinates)
         mic_list.append(mic)
         room_list.append(room)
         fs_list.append(fs)
+        winner_est_list.append(winner_est)
     spectrograms = combine_tensors_with_min_dim(spectrograms)
 
-    return spectrograms, source_coordinates_list, mic_list, room_list, fs_list
+    return spectrograms, torch.as_tensor(
+        np.asarray(winner_est_list)), source_coordinates_list, mic_list, room_list, fs_list
+
+
+def rir_data_preprocess_permute_normalize_and_cut(data, max_size:int =500):
+    spectrograms = []
+    winner_est_list = []
+    source_coordinates_list = []
+    mic_list = []
+    room_list = []
+    fs_list = []
+    for (spec, winner_est, source_coordinates, mic, room, fs) in zip(*data):
+        if spec.shape[1] < max_size:
+            continue
+        else:
+            ispec = spec[:, :max_size]
+            ispec = (ispec - torch.mean(ispec, dim=1, keepdim=True)) / (torch.std(ispec, dim=1, keepdim=True) + 1e-8)
+            ispec = torch.permute(ispec, [1, 0])
+            ispec = ispec.type(torch.FloatTensor)
+        spectrograms.append(torch.unsqueeze(ispec, dim=0))
+        source_coordinates_list.append(source_coordinates)
+        mic_list.append(mic)
+        room_list.append(room)
+        fs_list.append(fs)
+        winner_est = winner_est.type(torch.FloatTensor)
+        winner_est = (winner_est - torch.mean(winner_est)) / (torch.std(winner_est) + 1e-8)
+        winner_est = torch.unsqueeze(winner_est, 0)
+        winner_est_list.append(winner_est)
+    spectrograms = combine_tensors_with_min_dim(spectrograms)
+
+    return spectrograms, torch.stack(winner_est_list,0), source_coordinates_list, mic_list, room_list, fs_list
 
 
 def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_training_updates):
@@ -45,19 +81,20 @@ def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_trainin
 
     # waveform B,C,S
     for i in xrange(num_training_updates):
-        x, source_coordinates, mic, room, fs = next(iter(train_loader))
-        x = x.type(torch.FloatTensor)
+        x, winner_est, source_coordinates, mic, room, fs = next(iter(train_loader))
+        x, winner_est, source_coordinates, mic, room, fs = rir_data_preprocess_permute_normalize_and_cut((x, winner_est, source_coordinates, mic, room, fs))
+
         x = x.to(device)
-        x = (x - torch.mean(x, dim=1, keepdim=True)) / (torch.std(x, dim=1, keepdim=True) + 1e-8)
+        winner_est = winner_est.to(device)
 
         optimizer.zero_grad()
         vq_loss, reconstructed_x, perplexity = model(x)
 
-        if not x.shape == reconstructed_x.shape:
-            reduction = reconstructed_x.shape[2] - x.shape[2]
-            recon_error = F.mse_loss(reconstructed_x[:, :, :-reduction], x)  # / data_variance
+        if not winner_est.shape == reconstructed_x.shape:
+            reduction = reconstructed_x.shape[2] - winner_est.shape[2]
+            recon_error = F.mse_loss(reconstructed_x[:, :, :-reduction], winner_est)  # / data_variance
         else:
-            recon_error = F.mse_loss(reconstructed_x, x)
+            recon_error = F.mse_loss(reconstructed_x, winner_est)
         loss = recon_error + vq_loss
         loss.backward()
 
@@ -98,7 +135,8 @@ def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_trainin
     torch.save(model.state_dict(), 'model_rir_state_dict.pt')
 
 
-def train_location(vae_model: ConvolutionalVQVAE, location_model, optimizer, num_training_updates, train_loader, test_data):
+def train_location(vae_model: ConvolutionalVQVAE, location_model, optimizer, num_training_updates, train_loader,
+                   test_data):
     vae_model.eval()
     location_model.train()
 
@@ -108,7 +146,7 @@ def train_location(vae_model: ConvolutionalVQVAE, location_model, optimizer, num
     # waveform B,C,S
     for i in xrange(num_training_updates):
 
-        x, source_coordinates, mic, room, fs = next(iter(train_loader))
+        x, winner_est, source_coordinates, mic, room, fs = next(iter(train_loader))
         source_coordinates = torch.as_tensor(np.array(source_coordinates)).to(device)
         x = x.type(torch.FloatTensor)
         x = x.to(device)
@@ -137,7 +175,6 @@ def train_location(vae_model: ConvolutionalVQVAE, location_model, optimizer, num
             print('location error test: %.3f' % np.mean(test_location_error[-100:]))
             print()
 
-
     f = plt.figure()
     ax = f.add_subplot(1, 1, 1)
     ax.plot(train_location_error, label='train_dataset')
@@ -146,7 +183,6 @@ def train_location(vae_model: ConvolutionalVQVAE, location_model, optimizer, num
     ax.set_yscale('log')
     ax.set_title('location estimation, Train vs Test error')
     ax.set_xlabel('iteration')
-
 
     torch.save(location_model, 'location_model.pt')
     torch.save(location_model.state_dict(), 'location_model_state_dict.pt')
@@ -163,7 +199,8 @@ def run_location_training():
 
     dataset = RIR_DATASET(DATASET_PATH)
     dataset_size = len(dataset)
-    train_data, test_data = torch.utils.data.random_split(dataset, [int(dataset_size*train_percent), int(dataset_size*(1-train_percent))])
+    train_data, test_data = torch.utils.data.random_split(dataset, [int(dataset_size * train_percent),
+                                                                    int(dataset_size * (1 - train_percent))])
 
     train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True,
                               collate_fn=lambda x: rir_data_preprocessing(x))
@@ -178,12 +215,13 @@ def run_rir_training():
     DATASET_PATH = Path(os.getcwd()) / 'rir_dataset_generator' / 'dev_data'
     BATCH_SIZE = 64
     LR = 1e-3
-    IN_FEATURE_SIZE = 201
+    IN_FEATURE_SIZE = 500
     num_training_updates = 15000
 
     # CONV VQVAE
     num_hiddens = 40
     in_channels = IN_FEATURE_SIZE
+    out_channels = 1
     num_residual_layers = 2
     num_residual_hiddens = 20
     embedding_dim = 40
@@ -196,7 +234,9 @@ def run_rir_training():
                               collate_fn=lambda x: rir_data_preprocessing(x))
 
     model = ConvolutionalVQVAE(in_channels, num_hiddens, embedding_dim, num_residual_layers, num_residual_hiddens,
-                               commitment_cost, num_embeddings, use_jitter=use_jitter).to(device)
+                               commitment_cost, num_embeddings, use_jitter=use_jitter, encoder_average_pooling=True,
+                               out_channels=out_channels
+                               ).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, amsgrad=False)
     train_vq_vae(model=model, optimizer=optimizer, train_loader=train_loader, num_training_updates=num_training_updates)
@@ -210,7 +250,7 @@ def evaluate_location_model(test_data, location_model=torch.load('location_model
     vae_model.eval()
     location_model.eval()
     loss_list = []
-    for i , (x, source_coordinates, mic, room, fs) in enumerate(test_loader):
+    for i, (x, winner_est, source_coordinates, mic, room, fs) in enumerate(test_loader):
         source_coordinates = torch.squeeze(source_coordinates).to(device)
         x = x.type(torch.FloatTensor)
         x = x.to(device)
@@ -230,6 +270,5 @@ def evaluate_location_model(test_data, location_model=torch.load('location_model
 
 
 if __name__ == '__main__':
-    # run_rir_training()
-    run_location_training()
-
+    run_rir_training()
+    # run_location_training()

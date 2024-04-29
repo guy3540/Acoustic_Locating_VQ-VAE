@@ -82,7 +82,8 @@ for i_sample in range(DATASET_SIZE):
     filename = os.path.join(DATASET_DEST_PATH, f'{i_sample}.pt')
     theta_array.append(theta)
     scaled = np.int16(spec_final / np.abs(spec_final).max() * 32767)
-    torch.save(scaled, filename)
+    winner_est_scaled = np.int16(winner_est / np.abs(winner_est).max() * 32767)
+    torch.save((scaled, winner_est_scaled), filename)
 
 np.save(os.path.join(DATASET_DEST_PATH, 'theta.npy'), np.array(theta_array))
 np.save(os.path.join(DATASET_DEST_PATH, 'dataset_config.npy'), dataset_config)
