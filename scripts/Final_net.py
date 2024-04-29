@@ -35,7 +35,7 @@ class acoustic_location_model(nn.Module):
         self.rir_model = rir_model.to(device)
         self.speech_model = speech_model.to(device)
 
-        self.embedding_dim = self.rir_model._vq._embedding_dim + self.speech_model._vq._embedding_dim
+        self.embedding_dim = self.rir_model.get_embedding_dim() + self.speech_model.get_embedding_dim()
 
         self._decoder = DeconvolutionalDecoder(
             in_channels=self.embedding_dim,

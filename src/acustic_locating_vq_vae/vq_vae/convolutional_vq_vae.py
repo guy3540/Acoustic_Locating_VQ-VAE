@@ -49,6 +49,9 @@ class ConvolutionalVQVAE(nn.Module):
             jitter_probability=0.25,
         )
 
+    def get_embedding_dim(self):
+        return self._vq.get_embedding_dim()
+
     def train_on_data(self, optimizer: optim, dataloader: DataLoader, num_training_updates, data_variance):
         self.train()
         train_res_recon_error = []
