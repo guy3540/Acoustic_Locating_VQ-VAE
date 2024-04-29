@@ -18,6 +18,9 @@ class VectorQuantizer(nn.Module):
 
         self.flag_flatten = flag_flatten
 
+    def get_embedding_dim(self):
+        return self._embedding_dim
+
     def forward(self, inputs):
         input_shape = inputs.shape
 
