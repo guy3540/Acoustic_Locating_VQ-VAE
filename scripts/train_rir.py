@@ -22,19 +22,21 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def rir_data_preprocessing(data):
     spectrograms = []
+    winner_est_list = []
     source_coordinates_list = []
     mic_list = []
     room_list = []
     fs_list = []
-    for (spec, source_coordinates, mic, room, fs) in data:
+    for (spec,winner_est, source_coordinates, mic, room, fs) in data:
         spectrograms.append(torch.unsqueeze(torch.from_numpy(spec), dim=0))
         source_coordinates_list.append(source_coordinates)
         mic_list.append(mic)
         room_list.append(room)
         fs_list.append(fs)
+        winner_est_list.append(winner_est)
     spectrograms = combine_tensors_with_min_dim(spectrograms)
 
-    return spectrograms, source_coordinates_list, mic_list, room_list, fs_list
+    return spectrograms, winner_est_list, source_coordinates_list, mic_list, room_list, fs_list
 
 
 def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_training_updates):
@@ -45,7 +47,7 @@ def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_trainin
 
     # waveform B,C,S
     for i in xrange(num_training_updates):
-        x, source_coordinates, mic, room, fs = next(iter(train_loader))
+        x, winner_est, source_coordinates, mic, room, fs = next(iter(train_loader))
         x = x.type(torch.FloatTensor)
         x = x.to(device)
         x = (x - torch.mean(x, dim=1, keepdim=True)) / (torch.std(x, dim=1, keepdim=True) + 1e-8)
@@ -108,7 +110,7 @@ def train_location(vae_model: ConvolutionalVQVAE, location_model, optimizer, num
     # waveform B,C,S
     for i in xrange(num_training_updates):
 
-        x, source_coordinates, mic, room, fs = next(iter(train_loader))
+        x, winner_est, source_coordinates, mic, room, fs = next(iter(train_loader))
         source_coordinates = torch.as_tensor(np.array(source_coordinates)).to(device)
         x = x.type(torch.FloatTensor)
         x = x.to(device)
@@ -210,7 +212,7 @@ def evaluate_location_model(test_data, location_model=torch.load('location_model
     vae_model.eval()
     location_model.eval()
     loss_list = []
-    for i , (x, source_coordinates, mic, room, fs) in enumerate(test_loader):
+    for i , (x,winner_est, source_coordinates, mic, room, fs) in enumerate(test_loader):
         source_coordinates = torch.squeeze(source_coordinates).to(device)
         x = x.type(torch.FloatTensor)
         x = x.to(device)
@@ -230,6 +232,6 @@ def evaluate_location_model(test_data, location_model=torch.load('location_model
 
 
 if __name__ == '__main__':
-    # run_rir_training()
-    run_location_training()
+    run_rir_training()
+    # run_location_training()
 
