@@ -102,7 +102,7 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
     ax.set_xlabel('iteration')
     plt.show()
     torch.save(model, '../models/model_speech.pt')
-    torch.save(model.state_dict(), '../models/model_speech_state_dict.pt')
+
 
 if __name__ == '__main__':
     train_dataset = torchaudio.datasets.LIBRISPEECH(DATASET_PATH, url='train-clean-100', download=True)

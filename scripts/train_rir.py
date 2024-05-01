@@ -191,7 +191,7 @@ def run_rir_training():
     train_vq_vae(model=model, optimizer=optimizer, train_loader=train_loader, num_training_updates=num_training_updates)
 
 
-def evaluate_location_model(test_data, location_model=torch.load('location_model.pt').to(device)):
+def evaluate_location_model(test_data, location_model):
     BATCH_SIZE = 2
     test_loader = DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=True)
     vae_model = torch.load('model_rir.pt').to(device)

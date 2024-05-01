@@ -17,7 +17,7 @@ rir_model = torch.load(os.path.join(os.path.dirname(__file__), '..', 'models', '
 speech_model = torch.load(os.path.join(os.path.dirname(__file__), '..', 'models', 'model_speech.pt'))
 
 BATCH_SIZE = 64
-num_training_updates = 5000
+num_training_updates = 10000
 num_hiddens = 50
 num_residual_layers = 2
 num_residual_hiddens = 50
@@ -35,7 +35,7 @@ class EchoedSpeechReconModel(nn.Module):
         self.rir_model = rir_model.to(device)
         self.speech_model = speech_model.to(device)
 
-        self.embedding_dim = self.rir_model.get_embedding_dim() + self.speech_model.get_embedding_dim()
+        self.embedding_dim = self.rir_model.get_embedding_dim()  #+ self.speech_model.get_embedding_dim()
 
         self._decoder = DeconvolutionalDecoder(
             in_channels=self.embedding_dim,
@@ -50,21 +50,14 @@ class EchoedSpeechReconModel(nn.Module):
     def forward(self, spec_in, spec_in_rir):
         _, rir_quantized, rir_perplexity, _ = self.rir_model.get_latent_representation(spec_in_rir)
 
-        rir_quantized = rir_quantized[:, :, 0].squeeze()  # TODO Delete once we have an updated model
-
         _, speech_quantized, speech_perplexity, _ = self.speech_model.get_latent_representation(spec_in)
 
-        rir_quantized_rep = rir_quantized.unsqueeze(2).repeat(1, 1, speech_quantized.shape[2])
-
-        stacked_res = torch.zeros((rir_quantized_rep.shape[0],
-                                   rir_quantized_rep.shape[1]*2, rir_quantized_rep.shape[2]), device=device)
-        stacked_res[:, ::2, :] = rir_quantized_rep.detach()
-        stacked_res[:, 1::2, :] = speech_quantized.detach()
+        stacked_res = torch.cat((rir_quantized.detach(), speech_quantized.detach()), dim=2)
 
         return self._decoder(stacked_res), speech_perplexity, rir_perplexity
 
 
-DATASET_PATH = os.path.join(os.path.dirname(__file__), 'rir_dataset_generator', 'dev_data')
+DATASET_PATH = os.path.join(os.path.dirname(__file__), 'train_data')
 train_data = RIR_DATASET(DATASET_PATH)
 train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True,
                           collate_fn=lambda datum: rir_data_preprocessing(datum))
