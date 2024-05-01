@@ -18,9 +18,9 @@ speech_model = torch.load(os.path.join(os.path.dirname(__file__), '..', 'models'
 
 BATCH_SIZE = 64
 num_training_updates = 10000
-num_hiddens = 50
+num_hiddens = 80
 num_residual_layers = 2
-num_residual_hiddens = 50
+num_residual_hiddens = 80
 use_jitter = True
 LR = 1e-3
 
@@ -115,5 +115,15 @@ for i in xrange(num_training_updates):
                          ylabel="mag",
                          ax=ax2)
         plt.show()
+
+f = plt.figure(figsize=(16, 8))
+ax = f.add_subplot(1, 1, 1)
+ax.plot(train_res_recon_error)
+ax.set_yscale('log')
+ax.set_title('Smoothed NMSE.')
+ax.set_xlabel('iteration')
+
+plt.show()
+
 
 torch.save(model, '../models/model_echoed_speech.pt')
