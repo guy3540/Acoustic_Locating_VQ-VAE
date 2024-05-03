@@ -9,6 +9,7 @@ from torch.utils.data import Dataset
 class speech_DATASET(Dataset):
     def __init__(self, root_dir: str, transform=None):
         self.transform = transform
+        self.root_dir = root_dir
         self.dataset_files = glob.glob(os.path.join(self.root_dir, '*.pt'))
 
         dataset_config = np.load(os.path.join(root_dir, 'dataset_config.npy'),
@@ -24,6 +25,6 @@ class speech_DATASET(Dataset):
     def __getitem__(self, idx):
         item_filename = "{}.pt".format(idx)
         item_path = os.path.join(self.root_dir, item_filename)
-        spectrogram = torch.load(item_path)
+        spectrogram, transcript, speaker_id, chapter_id, utterance_id = torch.load(item_path)
 
-        return spectrogram, self.fs
+        return spectrogram, transcript, speaker_id, chapter_id, utterance_id, self.fs

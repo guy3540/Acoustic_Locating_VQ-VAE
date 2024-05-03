@@ -12,12 +12,13 @@ from six.moves import xrange
 from acustic_locating_vq_vae.data_preprocessing import combine_tensors_with_min_dim
 from acustic_locating_vq_vae.visualization import plot_spectrogram
 from acustic_locating_vq_vae.vq_vae.convolutional_vq_vae import ConvolutionalVQVAE
-from acustic_locating_vq_vae.data_preprocessing import speech_data_preprocessing
+from acustic_locating_vq_vae.data_preprocessing import batchify_spectrograms
+from acustic_locating_vq_vae.rir_dataset_generator.speech_dataset import speech_DATASET
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-DATASET_PATH = os.path.join(os.getcwd(), "data")
+DATASET_PATH = os.path.join(os.getcwd(), "speech_dataset", "dev_data")
 BATCH_SIZE = 64
 LR = 1e-3  # as is in the speach article
 SAMPLING_RATE = 16e3
@@ -41,13 +42,6 @@ rev = 0.3
 olap = 0.75
 noverlap = round(olap * NFFT)
 
-audio_transformer = torchaudio.transforms.Spectrogram(n_fft=NFFT, hop_length=HOP_LENGTH,
-                                                      power=1, center=True, pad=0, normalized=True)
-
-
-# audio_transformer = torchaudio.transforms.MelSpectrogram(n_fft=NFFT, sample_rate=SAMPLING_RATE,hop_length=HOP_LENGTH,n_mels=IN_FEATURE_SIZE)
-# audio_transformer = torchaudio.transforms.MelSpectrogram(n_fft=NFFT, sample_rate=SAMPLING_RATE,hop_length=HOP_LENGTH,n_mels=IN_FEATURE_SIZE, window_fn=torch.hann_window, power=1.0, center=True)
-
 
 def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
     model.train()
@@ -57,7 +51,7 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
 
     # waveform B,C,S
     for i in xrange(num_training_updates):
-        (x, _) = next(iter(train_loader))
+        (x, sample_rate) = next(iter(train_loader))
         x = x.to(device)
 
         optimizer.zero_grad()
@@ -66,9 +60,9 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
 
         if not x.shape == reconstructed_x.shape:
             retuction = reconstructed_x.shape[2] - x.shape[2]
-            recon_error = F.mse_loss(reconstructed_x[:, :, :-retuction], x, reduction='sum')  # / data_variance
+            recon_error = F.mse_loss(reconstructed_x[:, :, :-retuction], x, reduction='mean')  # / data_variance
         else:
-            recon_error = F.mse_loss(reconstructed_x[:, :, :-retuction], x, reduction='sum')
+            recon_error = F.mse_loss(reconstructed_x[:, :, :-retuction], x, reduction='mean')
         loss = recon_error + vq_loss
         loss.backward()
 
@@ -82,7 +76,7 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
             print('recon_error: %.3f' % np.mean(train_res_recon_error[-100:]))
             print('perplexity: %.3f' % np.mean(train_res_perplexity[-100:]))
             print()
-        if (i + 1) % 10 == 0:
+        if (i + 1) % 50 == 0:
             fig, (ax1, ax2) = plt.subplots(1, 2)
             plot_spectrogram(x[0].detach().to('cpu'), title=f"{i} Spectrogram - input", ylabel="freq", ax=ax1)
             plot_spectrogram(reconstructed_x[0].detach().to('cpu'), title="Spectrogram - reconstructed", ylabel="freq",
@@ -108,9 +102,9 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
 
 
 if __name__ == '__main__':
-    train_dataset = torchaudio.datasets.LIBRISPEECH(DATASET_PATH, url='train-clean-100', download=True)
+    train_dataset = speech_DATASET(root_dir=DATASET_PATH, transform=None)
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,
-                              collate_fn=lambda x: speech_data_preprocessing(x, audio_transformer, NFFT, noverlap))
+                              collate_fn=lambda x: batchify_spectrograms(x, NFFT, noverlap))
 
     model = ConvolutionalVQVAE(in_channels, num_hiddens, embedding_dim, num_residual_layers, num_residual_hiddens,
                                commitment_cost, num_embeddings).to(device)
