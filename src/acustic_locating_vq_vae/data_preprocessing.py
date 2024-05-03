@@ -1,12 +1,20 @@
 import torch
 import numpy as np
+import scipy.signal as ss
 
 
-def speech_data_preprocessing(data, audio_transformer):
+def speech_data_preprocessing(data, audio_transformer, NFFT, noverlap):
     spectrograms = []
     for (waveform, sample_rate, _, _, _, _) in data:
-        spec = audio_transformer(waveform)
-        spectrograms.append(spec)
+        f, t, spec = ss.stft(waveform.squeeze(), nperseg=NFFT, noverlap=noverlap, fs=sample_rate)
+        a = np.real(spec)
+        b = np.imag(spec)
+        ###### this is interleving i did not get any benefits
+        # R_ri = np.empty((a.shape[0] + b.shape[0], a.shape[1]), dtype=a.dtype)
+        # R_ri[0::2, :] = a
+        # R_ri[1::2, :] = b
+        R_ri = np.vstack((np.real(spec), np.imag(spec)))
+        spectrograms.append(torch.unsqueeze(torch.as_tensor(R_ri), dim=0))
 
     spectrograms = combine_tensors_with_min_dim(spectrograms)
 
@@ -36,7 +44,8 @@ def rir_data_preprocessing(data):
     return spectrograms, torch.as_tensor(
         np.asarray(winner_est_list)), source_coordinates_list, mic_list, room_list, fs_list
 
-def rir_data_preprocess_permute_normalize_and_cut(data, max_size:int =500):
+
+def rir_data_preprocess_permute_normalize_and_cut(data, max_size: int = 500):
     spectrograms = []
     winner_est_list = []
     source_coordinates_list = []
@@ -62,7 +71,8 @@ def rir_data_preprocess_permute_normalize_and_cut(data, max_size:int =500):
         winner_est_list.append(winner_est)
     spectrograms = combine_tensors_with_min_dim(spectrograms)
 
-    return spectrograms, torch.stack(winner_est_list,0), source_coordinates_list, mic_list, room_list, fs_list
+    return spectrograms, torch.stack(winner_est_list, 0), source_coordinates_list, mic_list, room_list, fs_list
+
 
 def combine_tensors_with_min_dim(tensor_list):
     """
