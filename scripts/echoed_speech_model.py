@@ -47,6 +47,8 @@ class EchoedSpeechReconModel(nn.Module):
         ## Assume that speech_quantized is [Batch_Size, embedding_dim, t]
         ## Assume that rir_quantized is [Batch_Size, embedding_dim, 1]
         rir_quantized = torch.mean(rir_quantized, dim=2).unsqueeze(2)
+        print("Warning: edited rir_quantized")
+
         #######
 
         quantized = speech_quantized * rir_quantized  # quantized shape is the same as speech_quantized
