@@ -8,7 +8,6 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from acustic_locating_vq_vae.rir_dataset_generator.rir_dataset import RIR_DATASET
-from acustic_locating_vq_vae.vq_vae.deconvolutional_decoder import DeconvolutionalDecoder
 from acustic_locating_vq_vae.visualization import plot_spectrogram
 from train_rir import rir_data_preprocessing, rir_data_preprocess_permute_normalize_and_cut
 
@@ -35,26 +34,24 @@ class EchoedSpeechReconModel(nn.Module):
         self.rir_model = rir_model.to(device)
         self.speech_model = speech_model.to(device)
 
-        self.embedding_dim = self.rir_model.get_embedding_dim()  #+ self.speech_model.get_embedding_dim()
+        self.rir_model._vq.set_train_vq(False)
+        self.speech_model._vq.set_train_vq(False)
 
-        self._decoder = DeconvolutionalDecoder(
-            in_channels=self.embedding_dim,
-            out_channels=out_channels,
-            num_hiddens=num_hiddens,
-            num_residual_layers=num_residual_layers,
-            num_residual_hiddens=num_residual_hiddens,
-            use_jitter=use_jitter,
-            jitter_probability=0.25,
-        )
+        self.embedding_dim = self.rir_model.get_embedding_dim()  #+ self.speech_model.get_embedding_dim()
 
     def forward(self, spec_in, spec_in_rir):
         _, rir_quantized, rir_perplexity, _ = self.rir_model.get_latent_representation(spec_in_rir)
 
         _, speech_quantized, speech_perplexity, _ = self.speech_model.get_latent_representation(spec_in)
 
-        stacked_res = torch.cat((rir_quantized.detach(), speech_quantized.detach()), dim=2)
+        ## Assume that speech_quantized is [Batch_Size, embedding_dim, t]
+        ## Assume that rir_quantized is [Batch_Size, embedding_dim, 1]
+        rir_quantized = torch.mean(rir_quantized, dim=2).unsqueeze(2)
+        #######
 
-        return self._decoder(stacked_res), speech_perplexity, rir_perplexity
+        quantized = speech_quantized * rir_quantized  # quantized shape is the same as speech_quantized
+
+        return self.speech_model._decoder(quantized), speech_perplexity, rir_perplexity
 
 
 DATASET_PATH = os.path.join(os.path.dirname(__file__), 'train_data')
