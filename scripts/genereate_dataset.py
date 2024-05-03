@@ -9,7 +9,8 @@ from torch.utils.data import DataLoader
 from pathlib import Path
 
 
-def data_preprocessing(data, Z_LOC_SOURCE,R, room_dimensions,receiver_position,fs,reverberation_time, n_sample, audio_transformer,C, **kwargs ):
+def data_preprocessing(data, Z_LOC_SOURCE, R, room_dimensions, receiver_position, fs, reverberation_time,
+                       n_sample, audio_transformer, C, **kwargs):
     theta = np.random.uniform(low=-np.pi, high=np.pi, size=1)
     z_loc = np.array([Z_LOC_SOURCE])
     h_src_loc = np.stack((R * np.cos(theta).T, R * np.sin(theta).T, z_loc), axis=1) + receiver_position
@@ -52,6 +53,7 @@ def get_dataset_params(data_type: str) -> dict:
         params['n_sample'] = int(params['reverberation_time'] * params['fs'])
         params['R'] = 1
         params['Z_LOC_SOURCE'] = 1
+    # elif data_type == 'speech':
 
     return params
 
@@ -59,10 +61,17 @@ def get_dataset_params(data_type: str) -> dict:
 
 def main():
     DATASET_SIZE = 100
-    data_type='rir'
+    data_type = 'speech'
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     LibriSpeech_PATH = os.path.join(os.getcwd(), 'data')
-    DATASET_DEST_PATH = os.path.join(os.getcwd(), 'rir_dataset_generator', 'dev_data')
+    if data_type == 'rir':
+        DATASET_DEST_PATH = os.path.join(os.getcwd(), 'rir_dataset_generator', 'dev_data')
+    elif data_type == 'speech':
+        DATASET_DEST_PATH = os.path.join(os.getcwd(), 'speech_dataset', 'dev_data')
+    else:
+        raise ValueError('Illegal data type')
+
     Path(DATASET_DEST_PATH).mkdir(parents=True, exist_ok=True)
 
     dataset_config = get_dataset_params(data_type)
@@ -71,20 +80,34 @@ def main():
                                                           center=True, pad=0, normalized=True)
 
     train = torchaudio.datasets.LIBRISPEECH(LibriSpeech_PATH, url='train-clean-100', download=True)
-    train_loader = DataLoader(train, batch_size=1, shuffle=True, collate_fn=lambda x: data_preprocessing(x, audio_transformer=audio_transformer, **dataset_config))
 
-    theta_array = []
+    if data_type == 'rir':
+        train_loader = DataLoader(train, batch_size=1, shuffle=True, collate_fn=lambda x: data_preprocessing(x, audio_transformer=audio_transformer, **dataset_config))
+        theta_array = []
+    elif data_type == 'speech':
+        train_loader = DataLoader(train, batch_size=1, shuffle=True)
 
     for i_sample in range(DATASET_SIZE):
         print('Generating sample: ', i_sample)
-        (spec_final, sample_rate, theta, winner_est) = next(iter(train_loader))
-        filename = os.path.join(DATASET_DEST_PATH, f'{i_sample}.pt')
-        theta_array.append(theta)
-        scaled = np.int16(spec_final / np.abs(spec_final).max() * 32767)
-        winner_est_scaled = np.int16(winner_est / np.abs(winner_est).max() * 32767)
-        torch.save((scaled, winner_est_scaled), filename)
+        if data_type == 'rir':
+            (spec_final, sample_rate, theta, winner_est) = next(iter(train_loader))
+        elif data_type == 'speech':
+            waveform, fs, transcript, speaker_id, chapter_id, utterance_id = next(iter(train_loader))
+            spec_final = audio_transformer(waveform[0])
 
-    np.save(os.path.join(DATASET_DEST_PATH, 'theta.npy'), np.array(theta_array))
+        filename = os.path.join(DATASET_DEST_PATH, f'{i_sample}.pt')
+
+        scaled = np.int16(spec_final / np.abs(spec_final).max() * 32767)
+
+        if data_type == 'rir':
+            theta_array.append(theta)
+            wiener_est_scaled = np.int16(winner_est / np.abs(winner_est).max() * 32767)
+            torch.save((scaled, wiener_est_scaled), filename)
+        elif data_type == 'speech':
+            torch.save((scaled, transcript, speaker_id, chapter_id, utterance_id), filename)
+
+    if data_type == 'rir':
+        np.save(os.path.join(DATASET_DEST_PATH, 'theta.npy'), np.array(theta_array))
     np.save(os.path.join(DATASET_DEST_PATH, 'dataset_config.npy'), dataset_config)
 
 
