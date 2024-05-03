@@ -1,6 +1,6 @@
 import torch
 import librosa
-from scripts.main import speech_data_preprocessing
+from scripts.train_speech import speech_data_preprocessing
 import os
 from torch.utils.data import DataLoader
 import torchaudio
