@@ -15,26 +15,22 @@ def speech_data_preprocessing(data, audio_transformer):
 
 def rir_data_preprocessing(data):
     spectrograms = []
-    winner_est_list = []
+    wiener_est_list = []
     source_coordinates_list = []
     mic_list = []
     room_list = []
     fs_list = []
-    for (spec, winner_est, source_coordinates, mic, room, fs) in data:
-        if spec.shape[1] < 500:
-            continue
-        else:
-            ispec = spec[:, :500]
-        spectrograms.append(torch.unsqueeze(torch.from_numpy(ispec), dim=0))
+    for (spec, wiener_est, source_coordinates, mic, room, fs) in data:
+        spectrograms.append(torch.unsqueeze(torch.from_numpy(spec), dim=0))
         source_coordinates_list.append(source_coordinates)
         mic_list.append(mic)
         room_list.append(room)
         fs_list.append(fs)
-        winner_est_list.append(winner_est)
+        wiener_est_list.append(wiener_est)
     spectrograms = combine_tensors_with_min_dim(spectrograms)
 
     return spectrograms, torch.as_tensor(
-        np.asarray(winner_est_list)), source_coordinates_list, mic_list, room_list, fs_list
+        np.asarray(wiener_est_list)), source_coordinates_list, mic_list, room_list, fs_list
 
 def rir_data_preprocess_permute_normalize_and_cut(data, max_size:int =500):
     spectrograms = []

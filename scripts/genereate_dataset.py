@@ -16,7 +16,7 @@ room_dimensions = [4, 5, 3]
 reverberation_time = 0.4
 n_sample = int(reverberation_time * fs)
 R = 1
-DATASET_SIZE = 100
+DATASET_SIZE = 500
 Z_LOC_SOURCE = 1
 
 
@@ -66,9 +66,9 @@ def data_preprocessing(data):
         spec = np.divide(spec_signal, spec_with_h+1e-8)
         spec_final = np.divide(spec, np.abs(spec).max())
 
-        winner_est = torch.sum(spec_with_h * np.conjugate(spec_signal), dim =1) / (torch.sum(spec_signal*np.conjugate(spec_signal), dim=1)  + 1e-8)
+        wiener_est = torch.sum(spec_with_h * np.conjugate(spec_signal), dim =1) / (torch.sum(spec_signal*np.conjugate(spec_signal), dim=1)  + 1e-8)
 
-    return spec_final, sample_rate, theta, winner_est  # transcript, speaker_id, chapter_id, utterance_id
+    return spec_final, sample_rate, theta, wiener_est  # transcript, speaker_id, chapter_id, utterance_id
 
 
 train = torchaudio.datasets.LIBRISPEECH(LibriSpeech_PATH, url='train-clean-100', download=True)
