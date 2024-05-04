@@ -25,6 +25,6 @@ class speech_DATASET(Dataset):
     def __getitem__(self, idx):
         item_filename = "{}.pt".format(idx)
         item_path = os.path.join(self.root_dir, item_filename)
-        spectrogram, transcript, speaker_id, chapter_id, utterance_id = torch.load(item_path)
+        spectrogram = torch.load(item_path)
 
-        return spectrogram, transcript, speaker_id, chapter_id, utterance_id, self.fs
+        return spectrogram, self.fs

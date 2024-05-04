@@ -61,7 +61,7 @@ def get_dataset_params(data_type: str) -> dict:
 
 
 def main():
-    DATASET_SIZE = 1000
+    DATASET_SIZE = 5000
     data_type = 'speech'
     dataset_type = 'dev_data'
 
@@ -106,7 +106,7 @@ def main():
             wiener_est_scaled = np.int16(winner_est / np.abs(winner_est).max() * 32767)
             torch.save((spec_final, wiener_est_scaled), filename)
         elif data_type == 'speech':
-            torch.save((torch.from_numpy(spec_final), transcript, speaker_id, chapter_id, utterance_id), filename)
+            torch.save((torch.from_numpy(spec_final)), filename)
 
     if data_type == 'rir':
         np.save(os.path.join(DATASET_DEST_PATH, 'theta.npy'), np.array(theta_array))

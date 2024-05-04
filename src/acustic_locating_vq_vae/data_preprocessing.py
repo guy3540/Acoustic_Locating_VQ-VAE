@@ -8,12 +8,14 @@ def speech_waveform_to_spec(waveform, sample_rate, NFFT, noverlap):
     b = np.imag(spec)
     spec_final = np.vstack((np.real(spec), np.imag(spec)))
 
+    spec_final = 100 * (spec_final - spec_final.mean()) / np.std(spec_final)
+
     return spec_final
 
 
 def batchify_spectrograms(data, NFFT, noverlap):
     spectrograms = []
-    for (waveform, _, _, _, _, sample_rate) in data:
+    for (waveform, sample_rate) in data:
         R_ri = waveform
         spectrograms.append(R_ri.unsqueeze(0))
 
@@ -94,16 +96,16 @@ def combine_tensors_with_min_dim(tensor_list):
         raise ValueError("Input tensor list cannot be empty")
 
     # Check if all tensors have the same height (H)
-    H = tensor_list[0].size(1)
-    for tensor in tensor_list:
-        if tensor.size(1) != H:
-            raise ValueError("All tensors in the list must have the same height (H)")
+    # H = tensor_list[0].size(1)
+    # for tensor in tensor_list:
+    #     if tensor.size(1) != H:
+    #         raise ValueError("All tensors in the list must have the same height (H)")
 
     # Get the minimum dimension (X) across all tensors in the list
     min_dim = min(tensor.size(2) for tensor in tensor_list)
 
     # Create a new tensor to store the combined data
-    combined_tensor = torch.zeros((len(tensor_list), H, min_dim))
+    combined_tensor = torch.zeros((len(tensor_list), tensor_list[0].shape[1], min_dim))
 
     # Fill the combined tensor with data from the input tensors, selecting the minimum value for each element
     for i, tensor in enumerate(tensor_list):

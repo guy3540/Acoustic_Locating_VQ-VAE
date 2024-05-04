@@ -52,7 +52,6 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
     # waveform B,C,S
     for i in xrange(num_training_updates):
         (x, sample_rate) = next(iter(train_loader))
-        x = (x-x.mean())/torch.std(x)
         x = x.to(device)
 
         optimizer.zero_grad()
