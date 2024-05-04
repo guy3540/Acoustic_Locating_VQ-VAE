@@ -10,10 +10,10 @@ from matplotlib import pyplot as plt
 from acustic_locating_vq_vae.rir_dataset_generator.rir_dataset import RIR_DATASET
 from acustic_locating_vq_vae.visualization import plot_spectrogram
 from train_rir import rir_data_preprocessing, rir_data_preprocess_permute_normalize_and_cut
+from echoed_speech_model import EchoedSpeechReconModel
 
 
-rir_model = torch.load(os.path.join(os.path.dirname(__file__), '..', 'models', 'model_rir.pt'))
-speech_model = torch.load(os.path.join(os.path.dirname(__file__), '..', 'models', 'model_speech.pt'))
+echoed_speech_model = torch.load(os.path.join(os.path.dirname(__file__), '..', 'models', 'model_echoed_speech.pt'))
 
 BATCH_SIZE = 64
 num_training_updates = 10000
@@ -26,38 +26,36 @@ LR = 1e-3
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class EchoedSpeechReconModel(nn.Module):
-    def __init__(self, rir_model, speech_model):
-        super(EchoedSpeechReconModel, self).__init__()
+class LocatingModel(nn.Module):
+    def __init__(self, echoed_speech_model):
+        super(LocatingModel, self).__init__()
 
-        self.rir_model = rir_model.to(device)
-        self.speech_model = speech_model.to(device)
+        self.echoed_speech_model = echoed_speech_model.to(device)
 
-        self.rir_model._vq.set_train_vq(False)
-        self.speech_model._vq.set_train_vq(False)
+        self.embedding_dim = self.rir_model.get_embedding_dim()
 
-        self.embedding_dim = self.rir_model.get_embedding_dim()  #+ self.speech_model.get_embedding_dim()
+        self._decoder = nn.Sequential(
+            nn.Linear(self.embedding_dim, self.embedding_dim),
+            nn.ReLU(),
+            nn.Linear(self.embedding_dim, self.embedding_dim),
+            nn.ReLU(),
+            nn.Linear(self.embedding_dim, self.embedding_dim)
+        )
 
-    def forward(self, spec_in, spec_in_rir):
-        speech_quantized, rir_quantized, speech_perplexity, rir_perplexity = self.get_latent_representation(spec_in)
+    def forward(self, spec_in):
+        _, rir_quantized, speech_perplexity, rir_perplexity = (
+            self.echoed_speech_model.get_latent_representation(spec_in))
 
-        quantized = speech_quantized * rir_quantized  # quantized shape is the same as speech_quantized
-        return self.speech_model._decoder(quantized), speech_perplexity, rir_perplexity
+        return self._decoder(rir_quantized), speech_perplexity, rir_perplexity
 
-    def get_latent_representation(self, x):
-        _, rir_quantized, rir_perplexity, _ = self.rir_model.get_latent_representation(x)
 
-        _, speech_quantized, speech_perplexity, _ = self.speech_model.get_latent_representation(x)
 
-        #######
-        ## Assume that speech_quantized is [Batch_Size, embedding_dim, t]
-        ## Assume that rir_quantized is [Batch_Size, embedding_dim, 1]
-        rir_quantized = torch.mean(rir_quantized, dim=2).unsqueeze(2)
-        print("Warning: edited rir_quantized")
 
-        #######
 
-        return speech_quantized, rir_quantized, speech_perplexity, rir_perplexity
+
+
+
+
 
 
 DATASET_PATH = os.path.join(os.path.dirname(__file__), 'train_data')
@@ -68,7 +66,8 @@ train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True,
 sample_to_init, _, _, _, _, _ = next(iter(train_loader))
 out_channels = sample_to_init.shape[1]
 
-model = EchoedSpeechReconModel(rir_model, speech_model).to(device)
+model = EchoedSpeechReconModel(rir_model, speech_model, out_channels, num_hiddens, num_residual_layers,
+                               num_residual_hiddens, use_jitter).to(device)
 
 optimizer = torch.optim.Adam(model.parameters(), lr=LR, amsgrad=False)
 

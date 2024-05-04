@@ -23,48 +23,7 @@ class ConvolutionalEncoder(nn.Module):
             padding=1
         )
 
-
-        self._conv_2 = nn.Conv1d(
-            in_channels=num_hiddens,
-            out_channels=num_hiddens,
-            kernel_size=3,
-            stride=1,
-            padding=1
-        )
-
-        """
-        1 strided convolution length reduction layer with filter
-        length 4 and stride 2 (downsampling the signal by a factor
-        of two).
-        """
-        self._conv_3 =  nn.Conv1d(
-            in_channels=num_hiddens,
-            out_channels=num_hiddens,
-            kernel_size=4,
-            stride=2,
-            padding=2
-        )
-
-        """
-        2 convolutional layers with length 3 and
-        residual connections.
-        """
-
-        self._conv_4 = nn.Conv1d(
-            in_channels=num_hiddens,
-            out_channels=num_hiddens,
-            kernel_size=3,
-            stride=1,
-            padding=1
-        )
-
-        self._conv_5 = nn.Conv1d(
-            in_channels=num_hiddens,
-            out_channels=num_hiddens,
-            kernel_size=3,
-            stride=1,
-            padding=1
-        )
+        self._relu = nn.ReLU()
 
         """
         4 feedforward ReLu layers with residual connections.
@@ -80,16 +39,8 @@ class ConvolutionalEncoder(nn.Module):
 
     def forward(self, inputs):
 
-        x_conv_1 = F.relu(self._conv_1(inputs))
+        x = self._conv_1(inputs)
 
-        x = F.relu(self._conv_2(x_conv_1)) + x_conv_1
-        
-        x_conv_3 = F.relu(self._conv_3(x))
-
-        x_conv_4 = F.relu(self._conv_4(x_conv_3)) + x_conv_3
-
-        x_conv_5 = F.relu(self._conv_5(x_conv_4)) + x_conv_4
-
-        x = self._residual_stack(x_conv_5) + x_conv_5
+        x = self._residual_stack(x) + x
 
         return x

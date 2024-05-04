@@ -61,7 +61,7 @@ def get_dataset_params(data_type: str) -> dict:
 
 
 def main():
-    DATASET_SIZE = 100
+    DATASET_SIZE = 1000
     data_type = 'speech'
     dataset_type = 'dev_data'
 
@@ -101,14 +101,12 @@ def main():
                                                  dataset_config['noverlap'])
         filename = os.path.join(DATASET_DEST_PATH, f'{i_sample}.pt')
 
-        scaled = np.int16(spec_final / np.abs(spec_final).max() * 32767)
-
         if data_type == 'rir':
             theta_array.append(theta)
             wiener_est_scaled = np.int16(winner_est / np.abs(winner_est).max() * 32767)
-            torch.save((scaled, wiener_est_scaled), filename)
+            torch.save((spec_final, wiener_est_scaled), filename)
         elif data_type == 'speech':
-            torch.save((torch.from_numpy(scaled), transcript, speaker_id, chapter_id, utterance_id), filename)
+            torch.save((torch.from_numpy(spec_final), transcript, speaker_id, chapter_id, utterance_id), filename)
 
     if data_type == 'rir':
         np.save(os.path.join(DATASET_DEST_PATH, 'theta.npy'), np.array(theta_array))

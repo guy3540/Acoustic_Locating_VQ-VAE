@@ -57,6 +57,14 @@ class DeconvolutionalDecoder(nn.Module):
             padding=0
         )
 
+        self._conv_out = nn.Conv1d(
+            in_channels=num_hiddens,
+            out_channels=out_channels,
+            kernel_size=3,
+            stride=1,
+            padding=1
+        )
+
     def forward(self, inputs):
         # x, BCL
         x = inputs
@@ -66,14 +74,8 @@ class DeconvolutionalDecoder(nn.Module):
 
         x = self._conv_1(x)
 
-        x = self._upsample(x)
-
         x = self._residual_stack(x)
 
-        x = F.relu(self._conv_trans_1(x))
-
-        x = F.relu(self._conv_trans_2(x))
-
-        x = self._conv_trans_3(x)
+        x = self._conv_out(x)
 
         return x

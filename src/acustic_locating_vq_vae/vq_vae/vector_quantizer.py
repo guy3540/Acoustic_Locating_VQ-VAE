@@ -29,7 +29,7 @@ class VectorQuantizer(nn.Module):
     def forward(self, inputs):
         input_shape = inputs.shape
 
-        flat_input = inputs.view(-1, self._embedding_dim)
+        flat_input = torch.permute(inputs, (0, 2, 1)).reshape(-1, self._embedding_dim)
         # Calculate distances
         distances = (torch.sum(flat_input ** 2, dim=1, keepdim=True)
                      + torch.sum(self._embedding.weight ** 2, dim=1)
@@ -40,14 +40,15 @@ class VectorQuantizer(nn.Module):
         encodings.scatter_(1, encoding_indices, 1)
 
         # Quantize and unflatten
-        quantized = torch.matmul(encodings, self._embedding.weight).view(input_shape)
+        quantized = torch.matmul(encodings, self._embedding.weight).view(input_shape[0], input_shape[2], input_shape[1])
+        quantized = torch.permute(quantized, (0, 2, 1))
 
         # Loss
-        e_latent_loss = F.mse_loss(quantized.detach(), inputs)
+        e_latent_loss = F.mse_loss(quantized.detach(), inputs, reduction='mean')
         if self._train_vq:
-            q_latent_loss = F.mse_loss(quantized, inputs.detach())
+            q_latent_loss = F.mse_loss(quantized, inputs.detach(), reduction='mean')
         else:
-            q_latent_loss = F.mse_loss(quantized.detach(), inputs.detach())
+            q_latent_loss = F.mse_loss(quantized.detach(), inputs.detach(), reduction='mean')
 
         loss = q_latent_loss + self._commitment_cost * e_latent_loss
 

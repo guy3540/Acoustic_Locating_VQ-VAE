@@ -43,7 +43,6 @@ class Residual(nn.Module):
             bias=False
         )
 
-        relu_2 = nn.ReLU(True)
         conv_2 = nn.Conv1d(
             in_channels=num_residual_hiddens,
             out_channels=num_hiddens,
@@ -54,11 +53,12 @@ class Residual(nn.Module):
 
         # All parameters same as specified in the paper
         self._block = nn.Sequential(
-            relu_1,
             conv_1,
-            relu_2,
+            relu_1,
             conv_2
         )
+
+        self._relu = nn.ReLU()
     
     def forward(self, x):
-        return x + self._block(x)
+        return self._relu(x + self._block(x))
