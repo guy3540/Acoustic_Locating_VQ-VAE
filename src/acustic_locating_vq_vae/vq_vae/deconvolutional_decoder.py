@@ -16,7 +16,7 @@ class DeconvolutionalDecoder(nn.Module):
         if self._use_jitter:
             self._jitter = Jitter(jitter_probability)
 
-        self._conv_1 = nn.Conv1d(
+        self._conv_1 = nn.ConvTranspose1d(
             in_channels=in_channels,
             out_channels=num_hiddens,
             kernel_size=3,
@@ -24,11 +24,9 @@ class DeconvolutionalDecoder(nn.Module):
             padding=1
         )
 
-        self._upsample = nn.Upsample(scale_factor=2)
-
         self._residual_stack = ResidualStack(
-            in_channels=num_hiddens,
-            num_hiddens=num_hiddens,
+            in_channels=in_channels,
+            num_hiddens=in_channels,
             num_residual_layers=num_residual_layers,
             num_residual_hiddens=num_residual_hiddens
         )
@@ -57,8 +55,8 @@ class DeconvolutionalDecoder(nn.Module):
             padding=0
         )
 
-        self._conv_out = nn.Conv1d(
-            in_channels=num_hiddens,
+        self._conv_out = nn.ConvTranspose1d(
+            in_channels=in_channels,
             out_channels=out_channels,
             kernel_size=3,
             stride=1,
@@ -71,8 +69,6 @@ class DeconvolutionalDecoder(nn.Module):
 
         if self._use_jitter and self.training:
             x = self._jitter(x)
-
-        x = self._conv_1(x)
 
         x = self._residual_stack(x)
 

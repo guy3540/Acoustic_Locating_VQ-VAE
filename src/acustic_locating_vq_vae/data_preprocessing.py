@@ -8,7 +8,7 @@ def speech_waveform_to_spec(waveform, sample_rate, NFFT, noverlap):
     b = np.imag(spec)
     spec_final = np.vstack((np.real(spec), np.imag(spec)))
 
-    spec_final = 100 * (spec_final - spec_final.mean()) / np.std(spec_final)
+    spec_final = (spec_final - spec_final.mean()) / np.std(spec_final)
 
     return spec_final
 

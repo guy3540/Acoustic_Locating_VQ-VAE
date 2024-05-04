@@ -48,7 +48,7 @@ class VectorQuantizer(nn.Module):
         if self._train_vq:
             q_latent_loss = F.mse_loss(quantized, inputs.detach(), reduction='mean')
         else:
-            q_latent_loss = F.mse_loss(quantized.detach(), inputs.detach(), reduction='mean')
+            q_latent_loss = F.mse_loss(quantized.detach(), inputs.detach(), reduction='sum')
 
         loss = q_latent_loss + self._commitment_cost * e_latent_loss
 

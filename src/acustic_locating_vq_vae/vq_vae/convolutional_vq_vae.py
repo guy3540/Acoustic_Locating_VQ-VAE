@@ -25,12 +25,12 @@ class ConvolutionalVQVAE(nn.Module):
         self.encoder_average_pooling = encoder_average_pooling
         self._encoder = ConvolutionalEncoder(
             in_channels=in_channels,
-            num_hiddens=num_hiddens,
+            num_hiddens=in_channels,
             num_residual_layers=num_residual_layers,
             num_residual_hiddens=num_residual_hiddens,
         )
         self._pre_vq_conv = nn.Conv1d(
-            in_channels=num_hiddens,
+            in_channels=in_channels,
             out_channels=embedding_dim,
             kernel_size=3,
             padding=1
@@ -53,41 +53,6 @@ class ConvolutionalVQVAE(nn.Module):
 
     def get_embedding_dim(self):
         return self._vq.get_embedding_dim()
-
-    def train_on_data(self, optimizer: optim, dataloader: DataLoader, num_training_updates, data_variance):
-        self.train()
-        train_res_recon_error = []
-        train_res_perplexity = []
-
-        inputs: torch.Tensor
-        labels: torch.Tensor
-
-        for i in xrange(num_training_updates):
-            (inputs, _) = next(iter(dataloader))
-            inputs = inputs.to(device)
-            optimizer.zero_grad()
-
-            vq_loss, data_recon, perplexity = self(inputs)
-            if not inputs.shape == data_recon.shape:
-                recon_error = F.mse_loss(data_recon, inputs[:, :, :-1]) / data_variance
-            else:
-                recon_error = F.mse_loss(data_recon, inputs) / data_variance
-            loss = recon_error + vq_loss
-            loss.backward()
-
-            optimizer.step()
-
-            train_res_recon_error.append(recon_error.item())
-            train_res_perplexity.append(perplexity.item())
-
-            if (i + 1) % 100 == 0:
-                print('%d iterations' % (i + 1))
-                print('recon_error: %.3f' % np.mean(train_res_recon_error[-100:]))
-                print('perplexity: %.3f' % np.mean(train_res_perplexity[-100:]))
-                print()
-
-        self.train_res_recon_error = train_res_recon_error
-        self.train_res_perplexity = train_res_perplexity
 
     def forward(self, x):
         z = self._encoder(x)

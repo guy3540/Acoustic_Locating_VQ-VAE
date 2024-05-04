@@ -19,7 +19,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 DATASET_PATH = os.path.join(os.getcwd(), "speech_dataset", "dev_data")
 BATCH_SIZE = 64
-LR = 1e-3  # as is in the speach article
+LR = 1e-2  # as is in the speach article
 SAMPLING_RATE = 16e3
 NFFT = 2**11
 IN_FEATURE_SIZE = int((NFFT) + 2)
@@ -30,7 +30,7 @@ num_hiddens = 40
 in_channels = IN_FEATURE_SIZE
 num_residual_layers = 10
 num_residual_hiddens = 40
-embedding_dim = 2000
+embedding_dim = 256
 num_embeddings = 1024  # The higher this value, the higher the capacity in the information bottleneck.
 commitment_cost = 0.25  # as recommended in VQ VAE article
 
@@ -55,7 +55,7 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
         x = x.to(device)
 
         optimizer.zero_grad()
-        x = torch.squeeze(x, dim=1)
+        x = torch.squeeze(x/10, dim=1)
         vq_loss, reconstructed_x, perplexity = model(x)
 
         if not x.shape == reconstructed_x.shape:
@@ -114,6 +114,6 @@ if __name__ == '__main__':
     model = ConvolutionalVQVAE(in_channels, num_hiddens, embedding_dim, num_residual_layers, num_residual_hiddens,
                                commitment_cost, num_embeddings).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, amsgrad=False)
-    train(model=model, optimizer=optimizer, num_training_updates=50000)
+    train(model=model, optimizer=optimizer, num_training_updates=5000)
     # model.train_on_data(optimizer,train_loader,num_training_updates=15000, data_variance=1)
     print("init")
