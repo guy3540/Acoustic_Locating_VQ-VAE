@@ -66,7 +66,7 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
 
         unechoed_specs = unechoed_specs.to(device)
 
-        recon_error = F.mse_loss(reconstructed_x.abs(), wiener_est.to(device).abs(), reduction='sum')
+        recon_error = F.l1_loss(reconstructed_x, wiener_est.to(device), reduction='sum')
 
         loss = recon_error + vq_loss
         loss.backward()

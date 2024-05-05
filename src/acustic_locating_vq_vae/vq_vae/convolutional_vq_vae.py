@@ -35,6 +35,7 @@ class ConvolutionalVQVAE(nn.Module):
             kernel_size=3,
             padding=1
         )
+        nn.init.kaiming_uniform_(self._pre_vq_conv.weight, a=0, mode="fan_in", nonlinearity="relu")
 
         self._vq = VectorQuantizer(
             num_embeddings=num_embeddings,

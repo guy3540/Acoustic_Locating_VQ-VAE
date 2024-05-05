@@ -22,6 +22,7 @@ class ConvolutionalEncoder(nn.Module):
             stride=1,
             padding=1
         )
+        nn.init.kaiming_uniform_(self._conv_1.weight, a=0, mode="fan_in", nonlinearity="relu")
 
 
         self._conv_2 = nn.Conv1d(
@@ -31,6 +32,7 @@ class ConvolutionalEncoder(nn.Module):
             stride=1,
             padding=1
         )
+        nn.init.kaiming_uniform_(self._conv_2.weight, a=0, mode="fan_in", nonlinearity="relu")
 
         """
         1 strided convolution length reduction layer with filter
@@ -44,6 +46,7 @@ class ConvolutionalEncoder(nn.Module):
             stride=2,
             padding=2
         )
+        nn.init.kaiming_uniform_(self._conv_3.weight, a=0, mode="fan_in", nonlinearity="relu")
 
         """
         2 convolutional layers with length 3 and
@@ -57,6 +60,7 @@ class ConvolutionalEncoder(nn.Module):
             stride=1,
             padding=1
         )
+        nn.init.kaiming_uniform_(self._conv_4.weight, a=0, mode="fan_in", nonlinearity="relu")
 
         self._conv_5 = nn.Conv1d(
             in_channels=num_hiddens,
@@ -65,6 +69,7 @@ class ConvolutionalEncoder(nn.Module):
             stride=1,
             padding=1
         )
+        nn.init.kaiming_uniform_(self._conv_5.weight, a=0, mode="fan_in", nonlinearity="relu")
 
         """
         4 feedforward ReLu layers with residual connections.
