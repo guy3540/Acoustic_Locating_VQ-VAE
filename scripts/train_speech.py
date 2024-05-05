@@ -86,11 +86,11 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
             print()
         if (i + 1) % 50 == 0:
             fig, (ax1, ax2) = plt.subplots(2, 1)
-            plot_spectrogram(torch.hstack((x[0].detach(), reconstructed_x.detach())).to('cpu'),
+            plot_spectrogram(torch.hstack((x[0].detach(), reconstructed_x[0].detach())).to('cpu'),
                              title=f"{i} Spectrogram - input", ylabel="freq", ax=ax1)
             freq_to_plot = 10
             ax2.plot(x[0, freq_to_plot, :].detach().to('cpu'), label='input')
-            ax2.plot(reconstructed_x.detach().to('cpu'), label="reconstruction")
+            ax2.plot(reconstructed_x[0, freq_to_plot, :].detach().to('cpu'), label="reconstruction")
             ax2.legend()
             ax2.set_title(f'freq{freq_to_plot} ')
             ax2.set_xlabel('Time')
