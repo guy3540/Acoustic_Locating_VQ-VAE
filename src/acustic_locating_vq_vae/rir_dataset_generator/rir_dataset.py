@@ -14,7 +14,6 @@ class RIR_DATASET(Dataset):
 
         dataset_config = np.load(os.path.join(root_dir, 'dataset_config.npy'),
                                  allow_pickle=True).item()
-        self.theta = np.load(os.path.join(root_dir, 'theta.npy'))
 
         self.fs = dataset_config['fs']
         self.receiver_position = dataset_config['receiver_position']
@@ -32,15 +31,10 @@ class RIR_DATASET(Dataset):
     def __getitem__(self, idx):
         item_filename = "{}.pt".format(idx)
         item_path = os.path.join(self.root_dir, item_filename)
-        spectrogram, winter_est = torch.load(item_path)
-        room = self.room_dimensions
-        mic = self.receiver_position
+        echoed_spectrogram, rir_spectrogram, unechoed_spectrogram, sample_rate, theta, wiener_est = (
+            torch.load(item_path))
 
-        item_theta = self.theta[idx]
-
-        source_coordinates = self.get_source_coordinates(item_theta)
-
-        return spectrogram, winter_est, source_coordinates, mic, room, self.fs
+        return echoed_spectrogram, rir_spectrogram, unechoed_spectrogram, sample_rate, theta, wiener_est
 
     def get_source_coordinates(self, theta):
 

@@ -25,6 +25,27 @@ def batchify_spectrograms(data, NFFT, noverlap):
 
     return spectrograms, sample_rate,  # transcript, speaker_id, chapter_id, utterance_id
 
+def batchify_echoed_speech(data):
+    echoed_spectrograms_list = []
+    rir_spectrograms_list = []
+    unechoed_spectrograms_list = []
+    wiener_est_list = []
+    theta_list = []
+
+    for (echoed_speech_spec, rir_spec, unechoed_spec, sample_rate, theta, wiener_est) in data:
+        echoed_spectrograms_list.append(echoed_speech_spec)
+        rir_spectrograms_list.append(rir_spec)
+        unechoed_spectrograms_list.append(unechoed_spec)
+        wiener_est_list.append(wiener_est.unsqueeze(2))
+        theta_list.append(theta)
+
+    echoed_spectrograms = combine_tensors_with_min_dim(echoed_spectrograms_list)
+    rir_spectrograms = combine_tensors_with_min_dim(rir_spectrograms_list)
+    unechoed_spectrograms = combine_tensors_with_min_dim(unechoed_spectrograms_list)
+    wiener_est_final = combine_tensors_with_min_dim(wiener_est_list)
+
+    return echoed_spectrograms, rir_spectrograms, unechoed_spectrograms, sample_rate, theta_list, wiener_est_final
+
 
 def combine_tensors_with_min_dim(tensor_list):
     """
@@ -45,13 +66,13 @@ def combine_tensors_with_min_dim(tensor_list):
         raise ValueError("Input tensor list cannot be empty")
 
     # Check if all tensors have the same height (H)
-    H = tensor_list[0].size(1)
+    H = tensor_list[0].shape[1]
     for tensor in tensor_list:
-        if tensor.size(1) != H:
+        if tensor.shape[1] != H:
             raise ValueError("All tensors in the list must have the same height (H)")
 
     # Get the minimum dimension (X) across all tensors in the list
-    min_dim = min(tensor.size(2) for tensor in tensor_list)
+    min_dim = min(tensor.shape[2] for tensor in tensor_list)
 
     # Create a new tensor to store the combined data
     combined_tensor = torch.zeros((len(tensor_list), H, min_dim), dtype=torch.complex64)
@@ -81,6 +102,7 @@ def echoed_spec_from_random_rir(data, Z_LOC_SOURCE, R, room_dimensions, receiver
 
     echoed_spec_list = []
     rir_spec_list = []
+    unechoed_spec_list = []
     theta_list = []
     wiener_est_list = []
     sample_rate_list = []
@@ -90,17 +112,18 @@ def echoed_spec_from_random_rir(data, Z_LOC_SOURCE, R, room_dimensions, receiver
         if spec_signal is None:
             continue
         waveform_h = ss.convolve(waveform.squeeze(), h_RIR.squeeze(), mode='same')
-        spec_with_h = speech_waveform_to_spec(np.expand_dims(waveform_h, axis=(0,1)), sample_rate, NFFT, noverlap)
+        spec_with_h = speech_waveform_to_spec(np.expand_dims(waveform_h, axis=(0, 1)), sample_rate, NFFT, noverlap)
 
         rir_spec = np.divide(spec_with_h, spec_signal + 1e-8)
 
         wiener_est = np.sum(spec_with_h * np.conjugate(spec_signal), axis=1) / (
                     np.sum(spec_signal * np.conjugate(spec_signal), axis=1) + 1e-8)
 
-        echoed_spec_list.append(spec_with_h)
-        rir_spec_list.append(rir_spec)
-        theta_list.append(theta)
-        wiener_est_list.append(wiener_est)
+        echoed_spec_list.append(torch.from_numpy(spec_with_h).unsqueeze(0))
+        rir_spec_list.append(torch.from_numpy(rir_spec).unsqueeze(0))
+        unechoed_spec_list.append(torch.from_numpy(spec_signal).unsqueeze(0))
+        theta_list.append(torch.from_numpy(theta).unsqueeze(0))
+        wiener_est_list.append(torch.from_numpy(wiener_est).unsqueeze(0))
         sample_rate_list.append(sample_rate)
 
-    return echoed_spec_list, rir_spec_list, sample_rate_list, theta_list, wiener_est_list
+    return echoed_spec_list, rir_spec_list, unechoed_spec_list, sample_rate_list, theta_list, wiener_est_list

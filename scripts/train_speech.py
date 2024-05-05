@@ -65,9 +65,8 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
         if not x.shape == reconstructed_x.shape:
             reduction = reconstructed_x.shape[2] - x.shape[2]
             reconstructed_x = reconstructed_x[:, :, :-reduction]
-            recon_error = F.mse_loss(reconstructed_x, x, reduction='sum')  # / data_variance
-        else:
-            recon_error = F.mse_loss(reconstructed_x, x, reduction='sum')
+
+        recon_error = F.mse_loss(reconstructed_x, x, reduction='sum')
         loss = recon_error + vq_loss
         loss.backward()
 

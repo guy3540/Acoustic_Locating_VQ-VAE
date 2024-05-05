@@ -30,7 +30,7 @@ def generate_echoed_spectrogram_dataset(DATASET_SIZE: int, loader: DataLoader, D
                                   dataset_config: dict):
     i_sample = 0
     while i_sample < DATASET_SIZE:
-        echoed_spec_list, rir_spec_list, sample_rate_list, theta_list, wiener_est_list = next(iter(loader))
+        echoed_spec_list, rir_spec_list, unechoed_spec_list, sample_rate_list, theta_list, wiener_est_list = next(iter(loader))
 
         for j_sample in range(len(echoed_spec_list)):
             if i_sample == DATASET_SIZE:
@@ -40,8 +40,8 @@ def generate_echoed_spectrogram_dataset(DATASET_SIZE: int, loader: DataLoader, D
             print('Generating sample: ', i_sample)
             filename = os.path.join(DATASET_DEST_PATH, f'{i_sample}.pt')
 
-            torch.save((echoed_spec_list[j_sample], rir_spec_list[j_sample], sample_rate_list[j_sample],
-                        theta_list[j_sample], wiener_est_list[j_sample]), filename)
+            torch.save((echoed_spec_list[j_sample], rir_spec_list[j_sample], unechoed_spec_list[j_sample],
+                        sample_rate_list[j_sample],theta_list[j_sample], wiener_est_list[j_sample]), filename)
 
             i_sample += 1
     np.save(os.path.join(DATASET_DEST_PATH, 'dataset_config.npy'), dataset_config)
@@ -68,7 +68,7 @@ def get_dataset_params(data_type: str) -> dict:
 
 
 def main():
-    DATASET_SIZE = 100
+    DATASET_SIZE = 1000
     data_type = 'rir'
     dataset_type = 'dev_data'
     rir_batch_size = 20  # For faster dataset generation, in every batch the samples have the same RIR
