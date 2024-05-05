@@ -55,7 +55,7 @@ def get_dataset_params(data_type: str) -> dict:
     olap = 0.75
     params['noverlap'] = round(olap * params['NFFT'])
 
-    if data_type == 'rir':
+    if data_type == 'rir' or data_type == 'echoed_speech':
         params['C'] = 340
         params['receiver_position'] = [2, 1.5, 1.5]
         params['room_dimensions'] = [4, 5, 3]
@@ -68,7 +68,7 @@ def get_dataset_params(data_type: str) -> dict:
 
 
 def main():
-    DATASET_SIZE = 1000
+    DATASET_SIZE = 100
     data_type = 'rir'
     dataset_type = 'dev_data'
     rir_batch_size = 20  # For faster dataset generation, in every batch the samples have the same RIR
@@ -91,16 +91,13 @@ def main():
 
     librispeech_dataset = torchaudio.datasets.LIBRISPEECH(LibriSpeech_PATH, url='train-clean-100', download=True)
 
-    if data_type == 'rir':
+    if data_type == 'rir' or data_type == 'echoed_speech':
         train_loader = DataLoader(librispeech_dataset, batch_size=rir_batch_size, shuffle=True,
                                   collate_fn=lambda x: echoed_spec_from_random_rir(x, **dataset_config))
         generate_echoed_spectrogram_dataset(DATASET_SIZE, train_loader, DATASET_DEST_PATH, dataset_config)
     elif data_type == 'speech':
         train_loader = DataLoader(librispeech_dataset, batch_size=1, shuffle=True)
         generate_unechoed_spectrogram_dataset(DATASET_SIZE, train_loader, DATASET_DEST_PATH, dataset_config)
-    elif data_type == 'echoed_speech':
-        train_loader = DataLoader(librispeech_dataset, batch_size=1, shuffle=True)
-
 
 if __name__ == '__main__':
     main()
