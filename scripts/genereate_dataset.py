@@ -42,9 +42,9 @@ def rir_data_preprocessing(data, Z_LOC_SOURCE, R, room_dimensions, receiver_posi
 def get_dataset_params(data_type: str) -> dict:
     params = {}
     params['fs'] = int(16e3)
-    params['NFFT'] = int(params['fs'] * 0.025)
+    params['NFFT'] = int(2**11)
     params['HOP_LENGTH'] = int(params['fs'] * 0.01)
-    olap = 0.4
+    olap = 0.75
     params['noverlap'] = round(olap * params['NFFT'])
 
     if data_type == 'rir':
@@ -61,9 +61,9 @@ def get_dataset_params(data_type: str) -> dict:
 
 
 def main():
-    DATASET_SIZE = 1000
+    DATASET_SIZE = 10000
     data_type = 'speech'
-    dataset_type = 'dev_data'
+    dataset_type = 'train_data'
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

@@ -17,24 +17,24 @@ from acustic_locating_vq_vae.rir_dataset_generator.speech_dataset import speech_
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-DATASET_PATH = os.path.join(os.getcwd(), "speech_dataset", "dev_data")
-BATCH_SIZE = 64
-LR = 1e-2  # as is in the speach article
+DATASET_PATH = os.path.join(os.getcwd(), "speech_dataset", "train_data")
+BATCH_SIZE = 16
+LR = 1e-4  # as is in the speach article
 SAMPLING_RATE = 16e3
-NFFT = 2**11
+NFFT = int(2**11)
 IN_FEATURE_SIZE = int((NFFT) + 2)
 # IN_FEATURE_SIZE = 80
 HOP_LENGTH = int(SAMPLING_RATE * 0.01)
 output_features_dim = IN_FEATURE_SIZE
-num_hiddens = 40
+num_hiddens = 1024
 in_channels = IN_FEATURE_SIZE
 num_residual_layers = 10
-num_residual_hiddens = 40
-embedding_dim = 256
-num_embeddings = 1024  # The higher this value, the higher the capacity in the information bottleneck.
+num_residual_hiddens = 1024
+embedding_dim = 512
+num_embeddings = 128  # The higher this value, the higher the capacity in the information bottleneck.
 commitment_cost = 0.25  # as recommended in VQ VAE article
 
-use_jitter = False
+use_jitter = True
 jitter_probability = 0.12
 
 rev = 0.3
@@ -55,7 +55,7 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
         x = x.to(device)
 
         optimizer.zero_grad()
-        x = torch.squeeze(x/10, dim=1)
+        x = torch.squeeze(x, dim=1)
         vq_loss, reconstructed_x, perplexity = model(x)
 
         if not x.shape == reconstructed_x.shape:
@@ -81,7 +81,7 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
             print('total loss: %.3f' % (np.mean(train_vq_loss[-100:]) +
                   np.mean(train_res_recon_error[-100:])))
             print()
-        if (i + 1) % 200 == 0:
+        if (i + 1) % 500 == 0:
             fig, (ax1, ax2) = plt.subplots(1, 2)
             plot_spectrogram(real_spec_to_complex(x[0].detach().to('cpu')), title=f"{i} Spectrogram - input", ylabel="freq", ax=ax1)
             plot_spectrogram(real_spec_to_complex(reconstructed_x[0].detach().to('cpu')), title="Spectrogram - reconstructed", ylabel="freq",
@@ -114,6 +114,6 @@ if __name__ == '__main__':
     model = ConvolutionalVQVAE(in_channels, num_hiddens, embedding_dim, num_residual_layers, num_residual_hiddens,
                                commitment_cost, num_embeddings).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, amsgrad=False)
-    train(model=model, optimizer=optimizer, num_training_updates=5000)
+    train(model=model, optimizer=optimizer, num_training_updates=150000)
     # model.train_on_data(optimizer,train_loader,num_training_updates=15000, data_variance=1)
     print("init")
