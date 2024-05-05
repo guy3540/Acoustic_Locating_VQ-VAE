@@ -68,9 +68,9 @@ def get_dataset_params(data_type: str) -> dict:
 
 
 def main():
-    DATASET_SIZE = 100
+    DATASET_SIZE = 1000
     data_type = 'rir'
-    dataset_type = 'to_delete_data'
+    dataset_type = 'dev_data'
     rir_batch_size = 20  # For faster dataset generation, in every batch the samples have the same RIR
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
