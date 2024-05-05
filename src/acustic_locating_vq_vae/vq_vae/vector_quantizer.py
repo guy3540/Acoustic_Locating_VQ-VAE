@@ -43,11 +43,11 @@ class VectorQuantizer(nn.Module):
         quantized = torch.matmul(encodings, self._embedding.weight).view(input_shape)
 
         # Loss
-        e_latent_loss = F.mse_loss(quantized.detach(), inputs)
+        e_latent_loss = F.mse_loss(quantized.detach(), inputs, reduction='sum')
         if self._train_vq:
-            q_latent_loss = F.mse_loss(quantized, inputs.detach())
+            q_latent_loss = F.mse_loss(quantized, inputs.detach(), reduction='sum')
         else:
-            q_latent_loss = F.mse_loss(quantized.detach(), inputs.detach())
+            q_latent_loss = F.mse_loss(quantized.detach(), inputs.detach(), reduction='sum')
 
         loss = q_latent_loss + self._commitment_cost * e_latent_loss
 

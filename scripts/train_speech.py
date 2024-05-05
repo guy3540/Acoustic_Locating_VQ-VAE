@@ -8,8 +8,9 @@ from torch.utils.data import DataLoader
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from six.moves import xrange
+from line_profiler_pycharm import profile
 
-from acustic_locating_vq_vae.data_preprocessing import combine_tensors_with_min_dim
+
 from acustic_locating_vq_vae.visualization import plot_spectrogram
 from acustic_locating_vq_vae.vq_vae.convolutional_vq_vae import ConvolutionalVQVAE
 from acustic_locating_vq_vae.data_preprocessing import batchify_spectrograms
@@ -23,16 +24,16 @@ BATCH_SIZE = 64
 LR = 1e-3  # as is in the speach article
 SAMPLING_RATE = 16e3
 NFFT = 2**11
-IN_FEATURE_SIZE = int((NFFT) + 2)
+IN_FEATURE_SIZE = int((NFFT/2) + 1)
 # IN_FEATURE_SIZE = 80
 HOP_LENGTH = int(SAMPLING_RATE * 0.01)
 output_features_dim = IN_FEATURE_SIZE
-num_hiddens = 40
+num_hiddens = 768
 in_channels = IN_FEATURE_SIZE
 num_residual_layers = 10
-num_residual_hiddens = 20
-embedding_dim = 40
-num_embeddings = 1024  # The higher this value, the higher the capacity in the information bottleneck.
+num_residual_hiddens = 768
+embedding_dim = 64
+num_embeddings = 512  # The higher this value, the higher the capacity in the information bottleneck.
 commitment_cost = 0.25  # as recommended in VQ VAE article
 
 use_jitter = True
@@ -41,8 +42,7 @@ jitter_probability = 0.12
 rev = 0.3
 olap = 0.75
 noverlap = round(olap * NFFT)
-
-
+@profile
 def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
     model.train()
 
@@ -53,16 +53,19 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
     for i in xrange(num_training_updates):
         (x, sample_rate) = next(iter(train_loader))
         x = x.to(device)
-
+        x = torch.abs(x)
+        # x = (x-x.mean()) /x.std()
         optimizer.zero_grad()
         x = torch.squeeze(x, dim=1)
+
+
         vq_loss, reconstructed_x, perplexity = model(x)
 
         if not x.shape == reconstructed_x.shape:
             retuction = reconstructed_x.shape[2] - x.shape[2]
-            recon_error = F.mse_loss(reconstructed_x[:, :, :-retuction], x, reduction='mean')  # / data_variance
+            recon_error = F.mse_loss(reconstructed_x[:, :, :-retuction], x, reduction='sum')  # / data_variance
         else:
-            recon_error = F.mse_loss(reconstructed_x[:, :, :-retuction], x, reduction='mean')
+            recon_error = F.mse_loss(reconstructed_x[:, :, :-retuction], x, reduction='sum')
         loss = recon_error + vq_loss
         loss.backward()
 
@@ -75,12 +78,22 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
             print('%d iterations' % (i + 1))
             print('recon_error: %.3f' % np.mean(train_res_recon_error[-100:]))
             print('perplexity: %.3f' % np.mean(train_res_perplexity[-100:]))
+            print(f'max in x {torch.max(x).item():.5f}. max recon {torch.max(reconstructed_x).item():.5f} ')
+            print(f'min in x {torch.min(x).item():.5f}. min recon {torch.min(reconstructed_x).item():.5f} ')
+            print(f'vq loss out of total loss {((vq_loss/loss)*100).item():.5f}')
             print()
         if (i + 1) % 50 == 0:
-            fig, (ax1, ax2) = plt.subplots(1, 2)
-            plot_spectrogram(x[0].detach().to('cpu'), title=f"{i} Spectrogram - input", ylabel="freq", ax=ax1)
-            plot_spectrogram(reconstructed_x[0].detach().to('cpu'), title="Spectrogram - reconstructed", ylabel="freq",
-                             ax=ax2)
+            fig, (ax1, ax2) = plt.subplots(2, 1)
+            plot_spectrogram(torch.hstack((x[0].detach(), reconstructed_x[0,:,:-retuction].detach())).to('cpu'), title=f"{i} Spectrogram - input", ylabel="freq", ax=ax1)
+            freq_to_plot = 10
+            ax2.plot(x[0,freq_to_plot,:].detach().to('cpu'),label='input')
+            ax2.plot( reconstructed_x[0,freq_to_plot,:-retuction].detach().to('cpu'), label="reconstruction")
+            ax2.legend()
+            ax2.set_title(f'freq{freq_to_plot} ')
+            ax2.set_xlabel('Time')
+            ax2.set_ylabel('value')
+            # plot_spectrogram(reconstructed_x[0].detach().to('cpu'), title="Spectrogram - reconstructed", ylabel="freq",
+            #                  ax=ax2)
             plt.show()
 
     train_res_recon_error_smooth = savgol_filter(train_res_recon_error, 201, 7)

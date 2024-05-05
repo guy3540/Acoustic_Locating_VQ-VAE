@@ -9,6 +9,10 @@ from torch.utils.data import DataLoader
 from pathlib import Path
 from acustic_locating_vq_vae.data_preprocessing import speech_waveform_to_spec
 
+
+
+
+
 def rir_data_preprocessing(data, Z_LOC_SOURCE, R, room_dimensions, receiver_position, fs, reverberation_time,
                            n_sample, audio_transformer, C, **kwargs):
     theta = np.random.uniform(low=-np.pi, high=np.pi, size=1)
@@ -61,7 +65,7 @@ def get_dataset_params(data_type: str) -> dict:
 
 
 def main():
-    DATASET_SIZE = 100
+    DATASET_SIZE = 10000
     data_type = 'speech'
     dataset_type = 'dev_data'
 
@@ -90,25 +94,27 @@ def main():
         train_loader = DataLoader(librispeech_dataset, batch_size=1, shuffle=True)
     elif data_type == 'echoed_speech':
         train_loader = DataLoader(librispeech_dataset, batch_size=1, shuffle=True)
+    i_sample = 0
+    for i in range(DATASET_SIZE):
 
-    for i_sample in range(DATASET_SIZE):
-        print('Generating sample: ', i_sample)
         if data_type == 'rir':
             (spec_final, sample_rate, theta, winner_est) = next(iter(train_loader))
         elif data_type == 'speech':
             waveform, fs, transcript, speaker_id, chapter_id, utterance_id = next(iter(train_loader))
             spec_final = speech_waveform_to_spec(waveform, dataset_config['fs'], dataset_config['NFFT'],
                                                  dataset_config['noverlap'])
+            if spec_final is None:
+                continue
+        print('Generating sample: ', i_sample)
         filename = os.path.join(DATASET_DEST_PATH, f'{i_sample}.pt')
-
-        scaled = np.int16(spec_final / np.abs(spec_final).max() * 32767)
+        i_sample +=1
 
         if data_type == 'rir':
             theta_array.append(theta)
             wiener_est_scaled = np.int16(winner_est / np.abs(winner_est).max() * 32767)
-            torch.save((scaled, wiener_est_scaled), filename)
+            torch.save((spec_final, wiener_est_scaled), filename)
         elif data_type == 'speech':
-            torch.save((torch.from_numpy(scaled), transcript, speaker_id, chapter_id, utterance_id), filename)
+            torch.save((torch.from_numpy(spec_final), transcript, speaker_id, chapter_id, utterance_id), filename)
 
     if data_type == 'rir':
         np.save(os.path.join(DATASET_DEST_PATH, 'theta.npy'), np.array(theta_array))

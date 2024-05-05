@@ -2,18 +2,21 @@ import torch
 import numpy as np
 import scipy.signal as ss
 
-def speech_waveform_to_spec(waveform, sample_rate, NFFT, noverlap):
-    f, t, spec = ss.stft(waveform.squeeze(), nperseg=NFFT, noverlap=noverlap, fs=sample_rate)
-    a = np.real(spec)
-    b = np.imag(spec)
-    spec_final = np.vstack((np.real(spec), np.imag(spec)))
 
-    return spec_final
+def speech_waveform_to_spec(waveform, sample_rate, NFFT, noverlap):
+    if waveform.shape[2] < sample_rate*3:
+        return None
+    else:
+        waveform = waveform[:,:,:sample_rate*3]
+        waveform = (waveform - waveform.mean()) / waveform.std()
+    f, t, spec = ss.stft(waveform.squeeze(), nperseg=NFFT, noverlap=noverlap, fs=sample_rate)
+    return spec
 
 
 def batchify_spectrograms(data, NFFT, noverlap):
     spectrograms = []
     for (waveform, _, _, _, _, sample_rate) in data:
+
         R_ri = waveform
         spectrograms.append(R_ri.unsqueeze(0))
 
@@ -103,7 +106,7 @@ def combine_tensors_with_min_dim(tensor_list):
     min_dim = min(tensor.size(2) for tensor in tensor_list)
 
     # Create a new tensor to store the combined data
-    combined_tensor = torch.zeros((len(tensor_list), H, min_dim))
+    combined_tensor = torch.zeros((len(tensor_list), H, min_dim), dtype=torch.complex64)
 
     # Fill the combined tensor with data from the input tensors, selecting the minimum value for each element
     for i, tensor in enumerate(tensor_list):
