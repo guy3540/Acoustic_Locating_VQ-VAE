@@ -8,30 +8,32 @@ from torch.utils.data import DataLoader
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from six.moves import xrange
+from line_profiler_pycharm import profile
 
-from acustic_locating_vq_vae.data_preprocessing import combine_tensors_with_min_dim
+
 from acustic_locating_vq_vae.visualization import plot_spectrogram
 from acustic_locating_vq_vae.vq_vae.convolutional_vq_vae import ConvolutionalVQVAE
-from acustic_locating_vq_vae.data_preprocessing import speech_data_preprocessing
+from acustic_locating_vq_vae.data_preprocessing import batchify_spectrograms
+from acustic_locating_vq_vae.rir_dataset_generator.speech_dataset import speech_DATASET
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-DATASET_PATH = os.path.join(os.getcwd(), "data")
+DATASET_PATH = os.path.join(os.getcwd(), "speech_dataset", "dev_data")
 BATCH_SIZE = 64
 LR = 1e-3  # as is in the speach article
 SAMPLING_RATE = 16e3
 NFFT = 2**11
-IN_FEATURE_SIZE = int((NFFT) + 2)
+IN_FEATURE_SIZE = int((NFFT/2) + 1)
 # IN_FEATURE_SIZE = 80
 HOP_LENGTH = int(SAMPLING_RATE * 0.01)
 output_features_dim = IN_FEATURE_SIZE
-num_hiddens = 40
+num_hiddens = 768
 in_channels = IN_FEATURE_SIZE
 num_residual_layers = 10
-num_residual_hiddens = 20
-embedding_dim = 40
-num_embeddings = 1024  # The higher this value, the higher the capacity in the information bottleneck.
+num_residual_hiddens = 768
+embedding_dim = 64
+num_embeddings = 512  # The higher this value, the higher the capacity in the information bottleneck.
 commitment_cost = 0.25  # as recommended in VQ VAE article
 
 use_jitter = True
@@ -40,15 +42,7 @@ jitter_probability = 0.12
 rev = 0.3
 olap = 0.75
 noverlap = round(olap * NFFT)
-
-audio_transformer = torchaudio.transforms.Spectrogram(n_fft=NFFT, hop_length=HOP_LENGTH,
-                                                      power=1, center=True, pad=0, normalized=True)
-
-
-# audio_transformer = torchaudio.transforms.MelSpectrogram(n_fft=NFFT, sample_rate=SAMPLING_RATE,hop_length=HOP_LENGTH,n_mels=IN_FEATURE_SIZE)
-# audio_transformer = torchaudio.transforms.MelSpectrogram(n_fft=NFFT, sample_rate=SAMPLING_RATE,hop_length=HOP_LENGTH,n_mels=IN_FEATURE_SIZE, window_fn=torch.hann_window, power=1.0, center=True)
-
-
+@profile
 def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
     model.train()
 
@@ -57,11 +51,14 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
 
     # waveform B,C,S
     for i in xrange(num_training_updates):
-        (x, _) = next(iter(train_loader))
+        (x, sample_rate) = next(iter(train_loader))
         x = x.to(device)
-
+        x = torch.abs(x)
+        # x = (x-x.mean()) /x.std()
         optimizer.zero_grad()
         x = torch.squeeze(x, dim=1)
+
+
         vq_loss, reconstructed_x, perplexity = model(x)
 
         if not x.shape == reconstructed_x.shape:
@@ -81,12 +78,22 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
             print('%d iterations' % (i + 1))
             print('recon_error: %.3f' % np.mean(train_res_recon_error[-100:]))
             print('perplexity: %.3f' % np.mean(train_res_perplexity[-100:]))
+            print(f'max in x {torch.max(x).item():.5f}. max recon {torch.max(reconstructed_x).item():.5f} ')
+            print(f'min in x {torch.min(x).item():.5f}. min recon {torch.min(reconstructed_x).item():.5f} ')
+            print(f'vq loss out of total loss {((vq_loss/loss)*100).item():.5f}')
             print()
-        if (i + 1) % 10 == 0:
-            fig, (ax1, ax2) = plt.subplots(1, 2)
-            plot_spectrogram(x[0].detach().to('cpu'), title=f"{i} Spectrogram - input", ylabel="freq", ax=ax1)
-            plot_spectrogram(reconstructed_x[0].detach().to('cpu'), title="Spectrogram - reconstructed", ylabel="freq",
-                             ax=ax2)
+        if (i + 1) % 50 == 0:
+            fig, (ax1, ax2) = plt.subplots(2, 1)
+            plot_spectrogram(torch.hstack((x[0].detach(), reconstructed_x[0,:,:-retuction].detach())).to('cpu'), title=f"{i} Spectrogram - input", ylabel="freq", ax=ax1)
+            freq_to_plot = 10
+            ax2.plot(x[0,freq_to_plot,:].detach().to('cpu'),label='input')
+            ax2.plot( reconstructed_x[0,freq_to_plot,:-retuction].detach().to('cpu'), label="reconstruction")
+            ax2.legend()
+            ax2.set_title(f'freq{freq_to_plot} ')
+            ax2.set_xlabel('Time')
+            ax2.set_ylabel('value')
+            # plot_spectrogram(reconstructed_x[0].detach().to('cpu'), title="Spectrogram - reconstructed", ylabel="freq",
+            #                  ax=ax2)
             plt.show()
 
     train_res_recon_error_smooth = savgol_filter(train_res_recon_error, 201, 7)
@@ -108,9 +115,9 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
 
 
 if __name__ == '__main__':
-    train_dataset = torchaudio.datasets.LIBRISPEECH(DATASET_PATH, url='train-clean-100', download=True)
+    train_dataset = speech_DATASET(root_dir=DATASET_PATH, transform=None)
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,
-                              collate_fn=lambda x: speech_data_preprocessing(x, audio_transformer, NFFT, noverlap))
+                              collate_fn=lambda x: batchify_spectrograms(x, NFFT, noverlap))
 
     model = ConvolutionalVQVAE(in_channels, num_hiddens, embedding_dim, num_residual_layers, num_residual_hiddens,
                                commitment_cost, num_embeddings).to(device)

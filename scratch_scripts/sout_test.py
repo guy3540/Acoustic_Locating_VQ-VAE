@@ -1,6 +1,6 @@
 import torch
 import librosa
-from scripts.train_speech import speech_data_preprocessing
+from acustic_locating_vq_vae.data_preprocessing import batchify_spectrograms
 import os
 from torch.utils.data import DataLoader
 import torchaudio
@@ -8,14 +8,19 @@ import numpy as np
 from scipy.io.wavfile import write
 import matplotlib.pyplot as plt
 
+from acustic_locating_vq_vae.rir_dataset_generator.speech_dataset import speech_DATASET
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-model = torch.load(os.path.join(os.getcwd(), 'model.pt'))
+model = torch.load(os.path.join(os.getcwd(), r'C:\Users\reiem\PycharmProjects\Acoustic_Locating_VQ-VAE\models\model_speech.pt'))
 
 fs = 16e3
-dataset_path = os.path.join(os.getcwd(), "../scripts/data")
+dataset_path = r"C:\Users\reiem\PycharmProjects\Acoustic_Locating_VQ-VAE\scripts\speech_dataset\dev_data"
 batch_size = 1
+NFFT = 2**11
+olap = 0.75
+noverlap = round(olap * NFFT)
 
 def sound_from_sample(data, fs, filename):
     fs = int(fs)
@@ -24,13 +29,14 @@ def sound_from_sample(data, fs, filename):
     scaled = np.int16(y / np.max(np.abs(y)) * 32767).T
     write(filename, fs, scaled)
 
-test_data = torchaudio.datasets.LIBRISPEECH(dataset_path, url='test-clean', download=True)
+test_data = speech_DATASET(dataset_path)
 test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True,
-                         collate_fn=lambda x: speech_data_preprocessing(x))
+                         collate_fn=lambda x: batchify_spectrograms(x, NFFT, noverlap))
 
 model.eval()
 
 (originals,_) = next(iter(test_loader))
+originals = torch.abs(originals)
 originals_db = librosa.power_to_db(originals, ref=np.max)
 originals = originals.to(device)
 originals = torch.squeeze(originals, dim=1)
