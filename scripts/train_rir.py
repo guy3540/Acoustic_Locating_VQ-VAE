@@ -121,8 +121,7 @@ if __name__ == '__main__':
                               collate_fn=lambda x: batchify_echoed_speech(x))
 
     model = ConvolutionalVQVAE(in_channels, num_hiddens, embedding_dim, num_residual_layers, num_residual_hiddens,
-                               commitment_cost, num_embeddings, encoder_average_pooling=True,
-                               use_jitter=use_jitter).to(device)
+                               commitment_cost, num_embeddings, use_jitter=use_jitter).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, amsgrad=False)
     train(model=model, optimizer=optimizer, num_training_updates=15000)
     print("Done")
