@@ -1,13 +1,14 @@
 import torch
 import numpy as np
 import scipy.signal as ss
+import rir_generator as rir
 
 
 def speech_waveform_to_spec(waveform, sample_rate, NFFT, noverlap):
     if waveform.shape[2] < sample_rate*3:
         return None
     else:
-        waveform = waveform[:,:,:sample_rate*3]
+        waveform = waveform[:, :, :sample_rate*3]
         waveform = (waveform - waveform.mean()) / waveform.std()
     f, t, spec = ss.stft(waveform.squeeze(), nperseg=NFFT, noverlap=noverlap, fs=sample_rate)
     return spec
@@ -23,59 +24,6 @@ def batchify_spectrograms(data, NFFT, noverlap):
     spectrograms = combine_tensors_with_min_dim(spectrograms)
 
     return spectrograms, sample_rate,  # transcript, speaker_id, chapter_id, utterance_id
-
-
-def rir_data_preprocessing(data):
-    spectrograms = []
-    winner_est_list = []
-    source_coordinates_list = []
-    mic_list = []
-    room_list = []
-    fs_list = []
-    for (spec, winner_est, source_coordinates, mic, room, fs) in data:
-        if spec.shape[1] < 500:
-            continue
-        else:
-            ispec = spec[:, :500]
-        spectrograms.append(torch.unsqueeze(torch.from_numpy(ispec), dim=0))
-        source_coordinates_list.append(source_coordinates)
-        mic_list.append(mic)
-        room_list.append(room)
-        fs_list.append(fs)
-        winner_est_list.append(winner_est)
-    spectrograms = combine_tensors_with_min_dim(spectrograms)
-
-    return spectrograms, torch.as_tensor(
-        np.asarray(winner_est_list)), source_coordinates_list, mic_list, room_list, fs_list
-
-
-def rir_data_preprocess_permute_normalize_and_cut(data, max_size: int = 500):
-    spectrograms = []
-    winner_est_list = []
-    source_coordinates_list = []
-    mic_list = []
-    room_list = []
-    fs_list = []
-    for (spec, winner_est, source_coordinates, mic, room, fs) in zip(*data):
-        if spec.shape[1] < max_size:
-            continue
-        else:
-            ispec = spec[:, :max_size]
-            ispec = (ispec - torch.mean(ispec, dim=1, keepdim=True)) / (torch.std(ispec, dim=1, keepdim=True) + 1e-8)
-            ispec = torch.permute(ispec, [1, 0])
-            ispec = ispec.type(torch.FloatTensor)
-        spectrograms.append(torch.unsqueeze(ispec, dim=0))
-        source_coordinates_list.append(source_coordinates)
-        mic_list.append(mic)
-        room_list.append(room)
-        fs_list.append(fs)
-        winner_est = winner_est.type(torch.FloatTensor)
-        winner_est = (winner_est - torch.mean(winner_est)) / (torch.std(winner_est) + 1e-8)
-        winner_est = torch.unsqueeze(winner_est, 0)
-        winner_est_list.append(winner_est)
-    spectrograms = combine_tensors_with_min_dim(spectrograms)
-
-    return spectrograms, torch.stack(winner_est_list, 0), source_coordinates_list, mic_list, room_list, fs_list
 
 
 def combine_tensors_with_min_dim(tensor_list):
@@ -113,3 +61,46 @@ def combine_tensors_with_min_dim(tensor_list):
         combined_tensor[i, :, :] = tensor[:, :, :min_dim]
 
     return combined_tensor
+
+
+def echoed_spec_from_random_rir(data, Z_LOC_SOURCE, R, room_dimensions, receiver_position, fs, reverberation_time,
+                                n_sample, C, NFFT, noverlap, **kwargs):
+    theta = np.random.uniform(low=-np.pi, high=np.pi, size=1)
+    z_loc = np.array([Z_LOC_SOURCE])
+    h_src_loc = np.stack((R * np.cos(theta).T, R * np.sin(theta).T, z_loc), axis=1) + receiver_position
+    h_src_loc = np.minimum(h_src_loc, room_dimensions)
+    h_RIR = rir.generate(
+        c=C,  # Sound velocity (m/s)
+        fs=int(fs),  # Sample frequency (samples/s)
+        r=receiver_position,
+        s=np.squeeze(h_src_loc),  # Source position [x y z] (m)
+        L=room_dimensions,  # Room dimensions [x y z] (m)
+        reverberation_time=reverberation_time,  # Reverberation time (s)
+        nsample=n_sample,  # Number of output samples
+    )
+
+    echoed_spec_list = []
+    rir_spec_list = []
+    theta_list = []
+    wiener_est_list = []
+    sample_rate_list = []
+
+    for (waveform, sample_rate, _, _, _, _) in data:
+        spec_signal = speech_waveform_to_spec(waveform.unsqueeze(0), sample_rate, NFFT, noverlap)
+        if spec_signal is None:
+            continue
+        waveform_h = ss.convolve(waveform.squeeze(), h_RIR.squeeze(), mode='same')
+        spec_with_h = speech_waveform_to_spec(np.expand_dims(waveform_h, axis=(0,1)), sample_rate, NFFT, noverlap)
+
+        rir_spec = np.divide(spec_with_h, spec_signal + 1e-8)
+
+        wiener_est = np.sum(spec_with_h * np.conjugate(spec_signal), axis=1) / (
+                    np.sum(spec_signal * np.conjugate(spec_signal), axis=1) + 1e-8)
+
+        echoed_spec_list.append(spec_with_h)
+        rir_spec_list.append(rir_spec)
+        theta_list.append(theta)
+        wiener_est_list.append(wiener_est)
+        sample_rate_list.append(sample_rate)
+
+    return echoed_spec_list, rir_spec_list, sample_rate_list, theta_list, wiener_est_list

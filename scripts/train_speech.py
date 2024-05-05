@@ -42,6 +42,8 @@ jitter_probability = 0.12
 rev = 0.3
 olap = 0.75
 noverlap = round(olap * NFFT)
+
+
 @profile
 def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
     model.train()
@@ -58,14 +60,14 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
         optimizer.zero_grad()
         x = torch.squeeze(x, dim=1)
 
-
         vq_loss, reconstructed_x, perplexity = model(x)
 
         if not x.shape == reconstructed_x.shape:
-            retuction = reconstructed_x.shape[2] - x.shape[2]
-            recon_error = F.mse_loss(reconstructed_x[:, :, :-retuction], x, reduction='sum')  # / data_variance
+            reduction = reconstructed_x.shape[2] - x.shape[2]
+            reconstructed_x = reconstructed_x[:, :, :-reduction]
+            recon_error = F.mse_loss(reconstructed_x, x, reduction='sum')  # / data_variance
         else:
-            recon_error = F.mse_loss(reconstructed_x[:, :, :-retuction], x, reduction='sum')
+            recon_error = F.mse_loss(reconstructed_x, x, reduction='sum')
         loss = recon_error + vq_loss
         loss.backward()
 
@@ -84,16 +86,16 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
             print()
         if (i + 1) % 50 == 0:
             fig, (ax1, ax2) = plt.subplots(2, 1)
-            plot_spectrogram(torch.hstack((x[0].detach(), reconstructed_x[0,:,:-retuction].detach())).to('cpu'), title=f"{i} Spectrogram - input", ylabel="freq", ax=ax1)
+            plot_spectrogram(torch.hstack((x[0].detach(), reconstructed_x.detach())).to('cpu'),
+                             title=f"{i} Spectrogram - input", ylabel="freq", ax=ax1)
             freq_to_plot = 10
-            ax2.plot(x[0,freq_to_plot,:].detach().to('cpu'),label='input')
-            ax2.plot( reconstructed_x[0,freq_to_plot,:-retuction].detach().to('cpu'), label="reconstruction")
+            ax2.plot(x[0, freq_to_plot, :].detach().to('cpu'), label='input')
+            ax2.plot(reconstructed_x.detach().to('cpu'), label="reconstruction")
             ax2.legend()
             ax2.set_title(f'freq{freq_to_plot} ')
             ax2.set_xlabel('Time')
             ax2.set_ylabel('value')
-            # plot_spectrogram(reconstructed_x[0].detach().to('cpu'), title="Spectrogram - reconstructed", ylabel="freq",
-            #                  ax=ax2)
+
             plt.show()
 
     train_res_recon_error_smooth = savgol_filter(train_res_recon_error, 201, 7)
@@ -123,5 +125,4 @@ if __name__ == '__main__':
                                commitment_cost, num_embeddings).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, amsgrad=False)
     train(model=model, optimizer=optimizer, num_training_updates=15000)
-    # model.train_on_data(optimizer,train_loader,num_training_updates=15000, data_variance=1)
-    print("init")
+    print("Done")
