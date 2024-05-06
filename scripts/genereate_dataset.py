@@ -39,7 +39,7 @@ dataset_config = {
     "Z_LOC_SOURCE": Z_LOC_SOURCE
 }
 
-audio_transformer = torchaudio.transforms.Spectrogram(n_fft=NFFT, hop_length=HOP_LENGTH, power=1,
+audio_transformer = torchaudio.transforms.Spectrogram(n_fft=NFFT, hop_length=HOP_LENGTH,power=None,
                                                       center=True, pad=0, normalized=True)
 
 
@@ -67,6 +67,8 @@ def data_preprocessing(data):
         spec_final = np.divide(spec, np.abs(spec).max())
 
         winner_est = torch.sum(spec_with_h * np.conjugate(spec_signal), dim =1) / (torch.sum(spec_signal*np.conjugate(spec_signal), dim=1)  + 1e-8)
+        winner_est = winner_est.abs().pow(2)
+        spec_final = spec_final.abs().pow(2)
 
     return spec_final, sample_rate, theta, winner_est  # transcript, speaker_id, chapter_id, utterance_id
 

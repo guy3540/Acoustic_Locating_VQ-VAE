@@ -86,9 +86,9 @@ def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_trainin
         if (i + 1) % 500 == 0:
             fig, (ax1, ax2) = plt.subplots(1, 2)
             plot_spectrogram(torch.squeeze(x[0]).detach().to('cpu'), title="Spectrogram - input", ylabel="mag", ax=ax1)
-            plot_spectrogram(torch.squeeze(reconstructed_x[0]).detach().to('cpu'), title="Spectrogram - reconstructed",
-                             ylabel="mag",
-                             ax=ax2)
+            ax2.plot(torch.squeeze(winner_est[0]).detach().to('cpu'), label="Winner Estimate")
+            ax2.plot(torch.squeeze(reconstructed_x[0]).detach().to('cpu'), label="reconstruction")
+            ax2.legend()
             plt.show()
 
     train_res_recon_error_smooth = savgol_filter(train_res_recon_error, 201, 7)
@@ -217,7 +217,7 @@ def run_rir_training():
     train_vq_vae(model=model, optimizer=optimizer, train_loader=train_loader, num_training_updates=num_training_updates)
 
 
-def evaluate_location_model(test_data, location_model=torch.load('location_model.pt').to(device)):
+def evaluate_location_model(test_data, location_model):
     BATCH_SIZE = 2
     test_loader = DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=True)
     vae_model = torch.load('model_rir.pt').to(device)
