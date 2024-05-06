@@ -87,13 +87,13 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
         if (i + 1) % 50 == 0:
             fig, (ax1, ax2) = plt.subplots(2, 1)
             plot_spectrogram(torch.hstack((wiener_est.detach().abs().cpu(), reconstructed_x.detach().abs().cpu())).to('cpu'),
-                             title=f"{i} Spectrogram - input", ylabel="freq", ax=ax1)
+                             title=f"{i} Wiener estimators - input and output", ylabel="sample#", ax=ax1)
             freq_to_plot = 10
             ax2.plot(wiener_est[:, freq_to_plot].detach().abs().to('cpu'), label='input')
             ax2.plot(reconstructed_x[:, freq_to_plot].detach().abs().to('cpu'), label="reconstruction")
             ax2.legend()
             ax2.set_title(f'freq{freq_to_plot} ')
-            ax2.set_xlabel('Time')
+            ax2.set_xlabel('sample')
             ax2.set_ylabel('value')
             plt.show()
 

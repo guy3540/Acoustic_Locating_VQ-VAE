@@ -4,6 +4,17 @@ import scipy.signal as ss
 import rir_generator as rir
 
 
+def get_real_spec_from_complex(spec: torch.tensor):
+    real = torch.real(spec)
+    imag = torch.imag(spec)
+    return torch.cat((real, imag), dim=1)
+
+
+def get_complex_spec_from_real(spec: torch.Tensor):
+    real_part = spec[:, spec.shape[0] // 2]
+    imag_part = spec[:, spec.shape[0] // 2:]
+    return torch.view_as_complex(torch.stack((real_part, imag_part), dim=-1))
+
 def speech_waveform_to_spec(waveform, sample_rate, NFFT, noverlap):
     if waveform.shape[2] < sample_rate*3:
         return None
