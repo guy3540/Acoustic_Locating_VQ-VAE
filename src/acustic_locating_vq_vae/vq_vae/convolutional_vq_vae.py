@@ -23,12 +23,16 @@ class ConvolutionalVQVAE(nn.Module):
 
         super(ConvolutionalVQVAE, self).__init__()
         self.encoder_average_pooling = encoder_average_pooling
+
         self._encoder = ConvolutionalEncoder(
             in_channels=in_channels,
             num_hiddens=num_hiddens,
             num_residual_layers=num_residual_layers,
             num_residual_hiddens=num_residual_hiddens,
         )
+
+        self._pooling = nn.AdaptiveAvgPool1d(1)
+
         self._pre_vq_conv = nn.Conv1d(
             in_channels=num_hiddens,
             out_channels=embedding_dim,
@@ -94,7 +98,7 @@ class ConvolutionalVQVAE(nn.Module):
         z = self._encoder(x)
         z = self._pre_vq_conv(z)
         if self.encoder_average_pooling:
-            z = torch.mean(z, dim=2, keepdim=True)
+            z = self._pooling(z)
         loss, quantized, perplexity, _ = self._vq(z)
         x_recon = self._decoder(quantized)
         return loss, x_recon, perplexity

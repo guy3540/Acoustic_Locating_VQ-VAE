@@ -14,15 +14,16 @@ from acustic_locating_vq_vae.visualization import plot_spectrogram
 from acustic_locating_vq_vae.vq_vae.convolutional_vq_vae import ConvolutionalVQVAE
 from acustic_locating_vq_vae.data_preprocessing import batchify_echoed_speech
 from acustic_locating_vq_vae.rir_dataset_generator.rir_dataset import RIR_DATASET
+from acustic_locating_vq_vae.data_preprocessing import get_real_spec_from_complex, get_complex_spec_from_real
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 DATASET_PATH = os.path.join(os.getcwd(), "rir_dataset_generator", "dev_data")
-BATCH_SIZE = 64
+BATCH_SIZE = 16
 LR = 1e-3  # as is in the speach article
 SAMPLING_RATE = 16e3
 NFFT = 2 ** 11
-IN_FEATURE_SIZE = int((NFFT / 2) + 1)
+IN_FEATURE_SIZE = int((NFFT / 2) + 1) * 2  # Factor two for real/imaginary conversion
 # IN_FEATURE_SIZE = 80
 HOP_LENGTH = int(SAMPLING_RATE * 0.01)
 output_features_dim = IN_FEATURE_SIZE
@@ -30,7 +31,7 @@ num_hiddens = 768
 in_channels = IN_FEATURE_SIZE
 num_residual_layers = 10
 num_residual_hiddens = 768
-embedding_dim = 64
+embedding_dim = 512
 num_embeddings = 512  # The higher this value, the higher the capacity in the information bottleneck.
 commitment_cost = 0.25  # as recommended in VQ VAE article
 
@@ -52,21 +53,21 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
     # waveform B,C,S
     for i in xrange(num_training_updates):
         echoed_specs, rir_specs, unechoed_specs, sample_rate, theta_list, wiener_est = next(iter(train_loader))
-        x = rir_specs
+        x = get_real_spec_from_complex(rir_specs)
         x = x.to(device)
-        x = torch.abs(x)
+        # x = torch.abs(x)
         optimizer.zero_grad()
-        x = torch.squeeze(x, dim=1)
+        # x = torch.squeeze(x, dim=1)
 
         vq_loss, reconstructed_x, perplexity = model(x)
 
-        if not wiener_est.shape == reconstructed_x.shape:
-            reduction = reconstructed_x.shape[2] - wiener_est.shape[2]
-            reconstructed_x = reconstructed_x[:, :, :-reduction]
+        wiener_est_recon = reconstructed_x[:, :, 2].squeeze()
+        wiener_est_recon_complex = get_complex_spec_from_real(wiener_est_recon)
 
-        unechoed_specs = unechoed_specs.to(device)
+        # wiener_est_recon = get_complex_spec_from_real(reconstructed_x)
 
-        recon_error = F.l1_loss(reconstructed_x, wiener_est.to(device), reduction='sum')
+        recon_error = F.mse_loss(wiener_est_recon,
+                                 get_real_spec_from_complex(wiener_est.squeeze().to(device)), reduction='sum')
 
         loss = recon_error + vq_loss
         loss.backward()
@@ -80,17 +81,18 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
             print('%d iterations' % (i + 1))
             print('recon_error: %.3f' % np.mean(train_res_recon_error[-100:]))
             print('perplexity: %.3f' % np.mean(train_res_perplexity[-100:]))
-            print(f'max in x {torch.max(wiener_est.abs()).item():.5f}. max recon {torch.max(reconstructed_x.abs()).item():.5f} ')
-            print(f'min in x {torch.min(wiener_est.abs()).item():.5f}. min recon {torch.min(reconstructed_x.abs()).item():.5f} ')
+            print(f'max in x {torch.max(wiener_est.abs()).item():.5f}. max recon {torch.max(wiener_est_recon_complex.abs()).item():.5f} ')
+            print(f'min in x {torch.min(wiener_est.abs()).item():.5f}. min recon {torch.min(wiener_est_recon_complex.abs()).item():.5f} ')
             print(f'vq loss out of total loss {((vq_loss / loss) * 100).item():.5f}')
             print()
         if (i + 1) % 50 == 0:
             fig, (ax1, ax2) = plt.subplots(2, 1)
-            plot_spectrogram(torch.hstack((wiener_est.detach().abs().cpu(), reconstructed_x.detach().abs().cpu())).to('cpu'),
+            plot_spectrogram(torch.hstack((wiener_est.squeeze().detach().abs().cpu(),
+                                           wiener_est_recon_complex.detach().abs().cpu())).to('cpu'),
                              title=f"{i} Wiener estimators - input and output", ylabel="sample#", ax=ax1)
             freq_to_plot = 10
             ax2.plot(wiener_est[:, freq_to_plot].detach().abs().to('cpu'), label='input')
-            ax2.plot(reconstructed_x[:, freq_to_plot].detach().abs().to('cpu'), label="reconstruction")
+            ax2.plot(wiener_est_recon_complex[:, freq_to_plot].detach().abs().to('cpu'), label="reconstruction")
             ax2.legend()
             ax2.set_title(f'freq{freq_to_plot} ')
             ax2.set_xlabel('sample')
@@ -121,7 +123,8 @@ if __name__ == '__main__':
                               collate_fn=lambda x: batchify_echoed_speech(x))
 
     model = ConvolutionalVQVAE(in_channels, num_hiddens, embedding_dim, num_residual_layers, num_residual_hiddens,
-                               commitment_cost, num_embeddings, use_jitter=use_jitter).to(device)
+                               commitment_cost, num_embeddings, use_jitter=use_jitter,
+                               encoder_average_pooling = True).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, amsgrad=False)
-    train(model=model, optimizer=optimizer, num_training_updates=15000)
+    train(model=model, optimizer=optimizer, num_training_updates=50000)
     print("Done")

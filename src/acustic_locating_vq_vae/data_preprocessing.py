@@ -11,8 +11,8 @@ def get_real_spec_from_complex(spec: torch.tensor):
 
 
 def get_complex_spec_from_real(spec: torch.Tensor):
-    real_part = spec[:, spec.shape[0] // 2]
-    imag_part = spec[:, spec.shape[0] // 2:]
+    real_part = spec[:, :spec.shape[1] // 2]
+    imag_part = spec[:, spec.shape[1] // 2:]
     return torch.view_as_complex(torch.stack((real_part, imag_part), dim=-1))
 
 def speech_waveform_to_spec(waveform, sample_rate, NFFT, noverlap):
