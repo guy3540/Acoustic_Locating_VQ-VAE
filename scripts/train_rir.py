@@ -3,6 +3,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from line_profiler import profile
 from scipy.signal import savgol_filter
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
@@ -17,7 +18,7 @@ from acoustic_locating_vq_vae.vq_vae.convolutional_vq_vae import ConvolutionalVQ
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
+@profile
 def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_training_updates):
     model.train()
 
@@ -65,8 +66,8 @@ def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_trainin
             ax2.legend()
             plt.show()
 
-    train_res_recon_error_smooth = savgol_filter(train_res_recon_error, 201, 7)
-    train_res_perplexity_smooth = savgol_filter(train_res_perplexity, 201, 7)
+    train_res_recon_error_smooth = train_res_recon_error
+    train_res_perplexity_smooth = train_res_perplexity
 
     f = plt.figure(figsize=(16, 8))
     ax = f.add_subplot(1, 2, 1)
@@ -80,8 +81,7 @@ def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_trainin
     ax.set_title('Smoothed Average codebook usage (perplexity).')
     ax.set_xlabel('iteration')
     plt.show()
-    torch.save(model, 'model_rir.pt')
-    torch.save(model.state_dict(), 'model_rir_state_dict.pt')
+    torch.save(model, '../models/model_rir.pt')
 
 
 def run_rir_training():
@@ -89,7 +89,7 @@ def run_rir_training():
     BATCH_SIZE = 64
     LR = 1e-3
     IN_FEATURE_SIZE = 500
-    num_training_updates = 15000
+    num_training_updates = 150
 
     # CONV VQVAE
     num_hiddens = 40

@@ -17,11 +17,11 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def run_location_training():
-    DATASET_PATH = Path(os.getcwd()) / 'echoed_speech_data' / 'dev_data'
+    DATASET_PATH = Path(os.getcwd()) / 'spec_data' / 'dev_data'
     encoder_output_dim = 101
     embedding_dim = 40
     BATCH_SIZE = 64
-    num_training_updates = 1500
+    num_training_updates = 150
     train_percent = 0.95
 
     dataset = SpecsDataset(DATASET_PATH)
@@ -41,7 +41,7 @@ def run_location_training():
 def evaluate_location_model(test_data, location_model):
     BATCH_SIZE = 2
     test_loader = DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=True)
-    vae_model = torch.load('model_rir.pt').to(device)
+    vae_model = torch.load('../models/model_rir.pt').to(device)
 
     vae_model.eval()
     location_model.eval()
@@ -76,8 +76,8 @@ def train_location(combined_model: EchoedSpeechReconModel, location_model, optim
     # waveform B,C,S
     for i in xrange(num_training_updates):
 
-        x, fs, theta, winner_est= next(iter(train_loader))
-        x = x.type(torch.FloatTensor)
+        _, _, echoed_specs, _, theta, _ = next(iter(train_loader))
+        x = echoed_specs.type(torch.FloatTensor)
         x = x.to(device)
         x = (x - torch.mean(x, dim=1, keepdim=True)) / (torch.std(x, dim=1, keepdim=True) + 1e-8)
         x = x.permute(0, 2, 1)
@@ -115,7 +115,6 @@ def train_location(combined_model: EchoedSpeechReconModel, location_model, optim
     ax.set_xlabel('iteration')
 
     torch.save(location_model, 'location_model.pt')
-    torch.save(location_model.state_dict(), 'location_model_state_dict.pt')
     plt.show()
 
 if __name__ == '__main__':

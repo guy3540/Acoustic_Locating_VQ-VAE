@@ -19,14 +19,14 @@ if __name__ == '__main__':
     speech_model = torch.load(os.path.join(os.path.dirname(__file__), '..', 'models', 'model_speech.pt'))
 
     BATCH_SIZE = 64
-    num_training_updates = 10000
+    num_training_updates = 100
     num_hiddens = 80
     num_residual_layers = 2
     num_residual_hiddens = 80
     use_jitter = True
     LR = 1e-3
 
-    DATASET_PATH = os.path.join(os.getcwd(), 'echoed_speech_data', 'dev_data')
+    DATASET_PATH = os.path.join(os.getcwd(), 'spec_data', 'dev_data')
 
     train_data = SpecsDataset(DATASET_PATH)
     train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True,
@@ -46,8 +46,8 @@ if __name__ == '__main__':
 
     model.train()
     for i in xrange(num_training_updates):
-        x, winner_est, source_coordinates, mic, room, fs = next(iter(train_loader))
-        x = x.type(torch.FloatTensor)
+        _, _, echoed_specs, _, _, _ = next(iter(train_loader))
+        x = echoed_specs.type(torch.FloatTensor)
         x = x.to(device)
         x = (x - torch.mean(x, dim=1, keepdim=True)) / (torch.std(x, dim=1, keepdim=True) + 1e-8)
 

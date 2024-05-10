@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from acoustic_locating_vq_vae.vq_vae.deconvolutional_decoder import DeconvolutionalDecoder
-from scripts.train_echoed_speech import device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class EchoedSpeechReconModel(nn.Module):

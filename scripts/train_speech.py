@@ -97,8 +97,8 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
 
             plt.show()
 
-    train_res_recon_error_smooth = savgol_filter(train_res_recon_error, 201, 7)
-    train_res_perplexity_smooth = savgol_filter(train_res_perplexity, 201, 7)
+    train_res_recon_error_smooth = train_res_recon_error
+    train_res_perplexity_smooth = train_res_perplexity
 
     f = plt.figure(figsize=(16, 8))
     ax = f.add_subplot(1, 2, 1)
@@ -123,5 +123,5 @@ if __name__ == '__main__':
     model = ConvolutionalVQVAE(in_channels, num_hiddens, embedding_dim, num_residual_layers, num_residual_hiddens,
                                commitment_cost, num_embeddings).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, amsgrad=False)
-    train(model=model, optimizer=optimizer, num_training_updates=15000)
+    train(model=model, optimizer=optimizer, num_training_updates=150)
     print("Done")
