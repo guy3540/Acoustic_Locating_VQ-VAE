@@ -1,103 +1,91 @@
 import os.path
 
 import numpy as np
+import scipy.signal as ss
+import rir_generator as rir
 import torchaudio
 import torch
 from torch.utils.data import DataLoader
 from pathlib import Path
-from acustic_locating_vq_vae.data_preprocessing import speech_waveform_to_spec, echoed_spec_from_random_rir
 
 
-def generate_unechoed_spectrogram_dataset(DATASET_SIZE: int, loader: DataLoader, DATASET_DEST_PATH: str,
-                                  dataset_config: dict):
-    for i_sample in range(DATASET_SIZE):
-        waveform, fs, transcript, speaker_id, chapter_id, utterance_id = next(iter(loader))
-        spec_final = speech_waveform_to_spec(waveform, dataset_config['fs'], dataset_config['NFFT'],
-                                             dataset_config['noverlap'])
-        if spec_final is None:
-            i_sample -= 1
-            continue
-        print('Generating sample: ', i_sample)
-        filename = os.path.join(DATASET_DEST_PATH, f'{i_sample}.pt')
-        i_sample += 1
-
-        torch.save((torch.from_numpy(spec_final), transcript, speaker_id, chapter_id, utterance_id), filename)
-
-    np.save(os.path.join(DATASET_DEST_PATH, 'dataset_config.npy'), dataset_config)
+C = 340
+fs = 16e3
+receiver_position = [2, 1.5, 1.5]
+room_dimensions = [4, 5, 3]
+reverberation_time = 0.4
+n_sample = int(reverberation_time * fs)
+R = 1
+DATASET_SIZE = 100
+Z_LOC_SOURCE = 1
 
 
-def generate_echoed_spectrogram_dataset(DATASET_SIZE: int, loader: DataLoader, DATASET_DEST_PATH: str,
-                                  dataset_config: dict):
-    i_sample = 0
-    while i_sample < DATASET_SIZE:
-        echoed_spec_list, rir_spec_list, unechoed_spec_list, sample_rate_list, theta_list, wiener_est_list = next(iter(loader))
+LibriSpeech_PATH = os.path.join(os.getcwd(), 'data')
+DATASET_DEST_PATH = os.path.join(os.getcwd(), 'rir_dataset_generator', 'dev_data')
+Path(DATASET_DEST_PATH).mkdir(parents=True, exist_ok=True)
 
-        for j_sample in range(len(echoed_spec_list)):
-            if i_sample == DATASET_SIZE:
-                break
-            if echoed_spec_list[j_sample] is None:
-                continue
-            print('Generating sample: ', i_sample)
-            filename = os.path.join(DATASET_DEST_PATH, f'{i_sample}.pt')
+NFFT = int(fs * 0.025)
+HOP_LENGTH = int(fs * 0.01)
 
-            torch.save((echoed_spec_list[j_sample], rir_spec_list[j_sample], unechoed_spec_list[j_sample],
-                        sample_rate_list[j_sample],theta_list[j_sample], wiener_est_list[j_sample]), filename)
+dataset_config = {
+    "fs": int(fs),
+    "receiver_position": receiver_position,
+    "room_dimensions": room_dimensions,
+    "reverberation_time": reverberation_time,
+    "n_sample": n_sample,
+    "R": R,
+    "NFFT": NFFT,
+    "HOP_LENGTH": HOP_LENGTH,
+    "Z_LOC_SOURCE": Z_LOC_SOURCE
+}
 
-            i_sample += 1
-    np.save(os.path.join(DATASET_DEST_PATH, 'dataset_config.npy'), dataset_config)
-
-
-def get_dataset_params(data_type: str) -> dict:
-    params = {}
-    params['fs'] = int(16e3)
-    params['NFFT'] = int(2**11)
-    params['HOP_LENGTH'] = int(params['fs'] * 0.01)
-    olap = 0.75
-    params['noverlap'] = round(olap * params['NFFT'])
-
-    if data_type == 'rir' or data_type == 'echoed_speech':
-        params['C'] = 340
-        params['receiver_position'] = [2, 1.5, 1.5]
-        params['room_dimensions'] = [4, 5, 3]
-        params['reverberation_time'] = 0.4
-        params['n_sample'] = int(params['reverberation_time'] * params['fs'])
-        params['R'] = 1
-        params['Z_LOC_SOURCE'] = 1
-
-    return params
+audio_transformer = torchaudio.transforms.Spectrogram(n_fft=NFFT, hop_length=HOP_LENGTH,power=None,
+                                                      center=True, pad=0, normalized=True)
 
 
-def main():
-    DATASET_SIZE = 1000
-    data_type = 'rir'
-    dataset_type = 'dev_data'
-    rir_batch_size = 20  # For faster dataset generation, in every batch the samples have the same RIR
+def data_preprocessing(data):
+    theta = np.random.uniform(low=-np.pi, high=np.pi, size=1)
+    z_loc = np.array([Z_LOC_SOURCE])
+    h_src_loc = np.stack((R*np.cos(theta).T, R*np.sin(theta).T, z_loc), axis=1) + receiver_position
+    h_src_loc = np.minimum(h_src_loc, room_dimensions)
+    h_RIR = rir.generate(
+        c=C,  # Sound velocity (m/s)
+        fs=int(fs),  # Sample frequency (samples/s)
+        r=receiver_position,
+        s=np.squeeze(h_src_loc),  # Source position [x y z] (m)
+        L=room_dimensions,  # Room dimensions [x y z] (m)
+        reverberation_time=reverberation_time,  # Reverberation time (s)
+        nsample=n_sample,  # Number of output samples
+    )
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    for (waveform, sample_rate, _, _, _, _) in data:
+        spec_signal = np.squeeze(audio_transformer(waveform))
+        waveform_h = ss.convolve(waveform.squeeze(), h_RIR.squeeze(), mode='same')
+        spec_with_h = audio_transformer(torch.from_numpy(waveform_h))
 
-    LibriSpeech_PATH = os.path.join(os.getcwd(), 'data')
-    if data_type == 'rir':
-        DATASET_DEST_PATH = os.path.join(os.getcwd(), 'rir_dataset_generator', dataset_type)
-    elif data_type == 'speech':
-        DATASET_DEST_PATH = os.path.join(os.getcwd(), 'speech_dataset', dataset_type)
-    elif data_type == 'echoed_speech':
-        DATASET_DEST_PATH = os.path.join(os.getcwd(), 'echoed_speech_dataset', dataset_type)
-    else:
-        raise ValueError('Illegal data type')
+        spec = np.divide(spec_signal, spec_with_h+1e-8)
+        spec_final = np.divide(spec, np.abs(spec).max())
 
-    Path(DATASET_DEST_PATH).mkdir(parents=True, exist_ok=True)
+        winner_est = torch.sum(spec_with_h * np.conjugate(spec_signal), dim =1) / (torch.sum(spec_signal*np.conjugate(spec_signal), dim=1)  + 1e-8)
+        winner_est = winner_est.abs().pow(2)
+        spec_final = spec_final.abs().pow(2)
 
-    dataset_config = get_dataset_params(data_type)
+    return spec_final, sample_rate, theta, winner_est  # transcript, speaker_id, chapter_id, utterance_id
 
-    librispeech_dataset = torchaudio.datasets.LIBRISPEECH(LibriSpeech_PATH, url='train-clean-100', download=True)
 
-    if data_type == 'rir' or data_type == 'echoed_speech':
-        train_loader = DataLoader(librispeech_dataset, batch_size=rir_batch_size, shuffle=True,
-                                  collate_fn=lambda x: echoed_spec_from_random_rir(x, **dataset_config))
-        generate_echoed_spectrogram_dataset(DATASET_SIZE, train_loader, DATASET_DEST_PATH, dataset_config)
-    elif data_type == 'speech':
-        train_loader = DataLoader(librispeech_dataset, batch_size=1, shuffle=True)
-        generate_unechoed_spectrogram_dataset(DATASET_SIZE, train_loader, DATASET_DEST_PATH, dataset_config)
+train = torchaudio.datasets.LIBRISPEECH(LibriSpeech_PATH, url='train-clean-100', download=True)
+train_loader = DataLoader(train, batch_size=1, shuffle=True, collate_fn=lambda x: data_preprocessing(x))
 
-if __name__ == '__main__':
-    main()
+theta_array = []
+
+for i_sample in range(DATASET_SIZE):
+    print('Generating sample: ', i_sample)
+    (spec_final, sample_rate, theta, winner_est) = next(iter(train_loader))
+    filename = os.path.join(DATASET_DEST_PATH, f'{i_sample}.pt')
+    theta_array.append(theta)
+    scaled = np.int16(spec_final / np.abs(spec_final).max() * 32767)
+    winner_est_scaled = np.int16(winner_est / np.abs(winner_est).max() * 32767)
+    torch.save((scaled, winner_est_scaled), filename)
+
+np.save(os.path.join(DATASET_DEST_PATH, 'theta.npy'), np.array(theta_array))
+np.save(os.path.join(DATASET_DEST_PATH, 'dataset_config.npy'), dataset_config)
