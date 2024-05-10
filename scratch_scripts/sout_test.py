@@ -1,6 +1,6 @@
 import torch
 import librosa
-from acustic_locating_vq_vae.data_preprocessing import batchify_spectrograms
+from acoustic_locating_vq_vae.data_preprocessing import batchify_spectrograms
 import os
 from torch.utils.data import DataLoader
 import torchaudio
@@ -8,7 +8,7 @@ import numpy as np
 from scipy.io.wavfile import write
 import matplotlib.pyplot as plt
 
-from acustic_locating_vq_vae.rir_dataset_generator.speech_dataset import speech_DATASET
+from acoustic_locating_vq_vae.rir_dataset_generator.speech_dataset import speech_DATASET
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

@@ -11,10 +11,10 @@ from six.moves import xrange
 from line_profiler_pycharm import profile
 
 
-from acustic_locating_vq_vae.visualization import plot_spectrogram
-from acustic_locating_vq_vae.vq_vae.convolutional_vq_vae import ConvolutionalVQVAE
-from acustic_locating_vq_vae.data_preprocessing import batchify_spectrograms
-from acustic_locating_vq_vae.rir_dataset_generator.speech_dataset import speech_DATASET
+from acoustic_locating_vq_vae.visualization import plot_spectrogram
+from acoustic_locating_vq_vae.vq_vae.convolutional_vq_vae import ConvolutionalVQVAE
+from acoustic_locating_vq_vae.data_preprocessing import batchify_spectrograms
+from acoustic_locating_vq_vae.rir_dataset_generator.speech_dataset import speech_DATASET
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

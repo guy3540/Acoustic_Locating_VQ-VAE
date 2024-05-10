@@ -1,3 +1,4 @@
+import torch
 from torch import nn
 
 
@@ -13,7 +14,7 @@ class LocationModule(nn.Module):
         self.fc_3 = nn.Linear(100, output_dim)
 
     def forward(self, x):
-         z = self.fc_1(x)
+         z = self.fc_1(torch.flatten(x, start_dim=1))
          z = self.relu1(z)
          z = self.fc_2(z)
          z = self.relu2(z)

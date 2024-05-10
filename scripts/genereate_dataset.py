@@ -16,12 +16,12 @@ room_dimensions = [4, 5, 3]
 reverberation_time = 0.4
 n_sample = int(reverberation_time * fs)
 R = 1
-DATASET_SIZE = 100
+DATASET_SIZE = 10000
 Z_LOC_SOURCE = 1
 
 
 LibriSpeech_PATH = os.path.join(os.getcwd(), 'data')
-DATASET_DEST_PATH = os.path.join(os.getcwd(), 'rir_dataset_generator', 'dev_data')
+DATASET_DEST_PATH = os.path.join(os.getcwd(), 'echoed_speech_data', 'dev_data')
 Path(DATASET_DEST_PATH).mkdir(parents=True, exist_ok=True)
 
 NFFT = int(fs * 0.025)
@@ -63,7 +63,7 @@ def data_preprocessing(data):
         waveform_h = ss.convolve(waveform.squeeze(), h_RIR.squeeze(), mode='same')
         spec_with_h = audio_transformer(torch.from_numpy(waveform_h))
 
-        spec = np.divide(spec_signal, spec_with_h+1e-8)
+        spec = spec_with_h
         spec_final = np.divide(spec, np.abs(spec).max())
 
         winner_est = torch.sum(spec_with_h * np.conjugate(spec_signal), dim =1) / (torch.sum(spec_signal*np.conjugate(spec_signal), dim=1)  + 1e-8)
@@ -85,7 +85,7 @@ for i_sample in range(DATASET_SIZE):
     theta_array.append(theta)
     scaled = np.int16(spec_final / np.abs(spec_final).max() * 32767)
     winner_est_scaled = np.int16(winner_est / np.abs(winner_est).max() * 32767)
-    torch.save((scaled, winner_est_scaled), filename)
+    torch.save((scaled, sample_rate, theta, winner_est_scaled), filename)
 
 np.save(os.path.join(DATASET_DEST_PATH, 'theta.npy'), np.array(theta_array))
 np.save(os.path.join(DATASET_DEST_PATH, 'dataset_config.npy'), dataset_config)
