@@ -8,10 +8,11 @@ from six.moves import xrange
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 
-from acoustic_locating_vq_vae.data_preprocessing import rir_data_preprocessing
-from acoustic_locating_vq_vae.rir_dataset_generator.rir_dataset import RIR_DATASET
+from acoustic_locating_vq_vae.data_preprocessing import spec_dataset_preprocessing
+from acoustic_locating_vq_vae.rir_dataset_generator.specsdataset import SpecsDataset
 from acoustic_locating_vq_vae.vq_vae.location_model.location_model import LocationModule
-from scripts.echoed_speech_model import EchoedSpeechReconModel
+from acoustic_locating_vq_vae.vq_vae.echoed_speech_model import EchoedSpeechReconModel
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -23,13 +24,13 @@ def run_location_training():
     num_training_updates = 1500
     train_percent = 0.95
 
-    dataset = RIR_DATASET(DATASET_PATH)
+    dataset = SpecsDataset(DATASET_PATH)
     dataset_size = len(dataset)
     train_data, test_data = torch.utils.data.random_split(dataset, [int(dataset_size * train_percent),
                                                                     int(dataset_size * (1 - train_percent))])
 
     train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True,
-                              collate_fn=lambda x: rir_data_preprocessing(x))
+                              collate_fn=lambda x: spec_dataset_preprocessing(x))
     vae_model = torch.load("/home/guy/PycharmProjects/Acoustic_Locating_VQ-VAE/models/model_echoed_speech.pt").to(device)
     location_model = LocationModule(encoder_output_dim, embedding_dim, 1).to(device)
     optimizer = torch.optim.Adam(location_model.parameters(), lr=1e-3)

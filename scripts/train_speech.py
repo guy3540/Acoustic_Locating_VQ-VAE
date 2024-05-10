@@ -13,26 +13,26 @@ from line_profiler_pycharm import profile
 
 from acoustic_locating_vq_vae.visualization import plot_spectrogram
 from acoustic_locating_vq_vae.vq_vae.convolutional_vq_vae import ConvolutionalVQVAE
-from acoustic_locating_vq_vae.data_preprocessing import batchify_spectrograms
-from acoustic_locating_vq_vae.rir_dataset_generator.speech_dataset import speech_DATASET
+from acoustic_locating_vq_vae.data_preprocessing import spec_dataset_preprocessing
+from acoustic_locating_vq_vae.rir_dataset_generator.specsdataset import SpecsDataset
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-DATASET_PATH = os.path.join(os.getcwd(), "speech_dataset", "dev_data")
+DATASET_PATH = os.path.join(os.getcwd(), "spec_data", "dev_data")
 BATCH_SIZE = 64
 LR = 1e-3  # as is in the speach article
 SAMPLING_RATE = 16e3
-NFFT = 2**11
+NFFT = 400
 IN_FEATURE_SIZE = int((NFFT/2) + 1)
 # IN_FEATURE_SIZE = 80
 HOP_LENGTH = int(SAMPLING_RATE * 0.01)
 output_features_dim = IN_FEATURE_SIZE
-num_hiddens = 768
+num_hiddens = 40
 in_channels = IN_FEATURE_SIZE
 num_residual_layers = 10
-num_residual_hiddens = 768
-embedding_dim = 64
+num_residual_hiddens = 20
+embedding_dim = 40
 num_embeddings = 512  # The higher this value, the higher the capacity in the information bottleneck.
 commitment_cost = 0.25  # as recommended in VQ VAE article
 
@@ -53,10 +53,10 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
 
     # waveform B,C,S
     for i in xrange(num_training_updates):
-        (x, sample_rate) = next(iter(train_loader))
+        (x, _, _, fs, _, _) = next(iter(train_loader))
         x = x.to(device)
         x = torch.abs(x)
-        # x = (x-x.mean()) /x.std()
+        x = (x - torch.mean(x, dim=1, keepdim=True)) / (torch.std(x, dim=1, keepdim=True) + 1e-8)
         optimizer.zero_grad()
         x = torch.squeeze(x, dim=1)
 
@@ -66,7 +66,7 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
             reduction = reconstructed_x.shape[2] - x.shape[2]
             reconstructed_x = reconstructed_x[:, :, :-reduction]
 
-        recon_error = F.mse_loss(reconstructed_x, x, reduction='sum')
+        recon_error = F.mse_loss(reconstructed_x, x, reduction='mean')
         loss = recon_error + vq_loss
         loss.backward()
 
@@ -116,9 +116,9 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
 
 
 if __name__ == '__main__':
-    train_dataset = speech_DATASET(root_dir=DATASET_PATH, transform=None)
+    train_dataset = SpecsDataset(root_dir=DATASET_PATH, transform=None)
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,
-                              collate_fn=lambda x: batchify_spectrograms(x, NFFT, noverlap))
+                              collate_fn=lambda x: spec_dataset_preprocessing(x))
 
     model = ConvolutionalVQVAE(in_channels, num_hiddens, embedding_dim, num_residual_layers, num_residual_hiddens,
                                commitment_cost, num_embeddings).to(device)

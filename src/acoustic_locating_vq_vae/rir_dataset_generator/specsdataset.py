@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import Dataset
 
 
-class RIR_DATASET(Dataset):
+class SpecsDataset(Dataset):
     def __init__(self, root_dir: str, transform=None):
         self.root_dir = root_dir
         self.transform = transform
@@ -31,9 +31,9 @@ class RIR_DATASET(Dataset):
     def __getitem__(self, idx):
         item_filename = "{}.pt".format(idx)
         item_path = os.path.join(self.root_dir, item_filename)
-        spec, fs, theta, winner_est = torch.load(item_path)
+        speech_spec, rir_spec, echoed_spec, sample_rate, theta, wiener_est = torch.load(item_path)
 
-        return spec, fs, theta, winner_est
+        return speech_spec, rir_spec, echoed_spec, sample_rate, theta, wiener_est
 
     def get_source_coordinates(self, theta):
 

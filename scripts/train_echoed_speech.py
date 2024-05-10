@@ -1,69 +1,17 @@
 import torch
 import os
-from torch import nn
 from torch.utils.data import DataLoader
 from six.moves import xrange
 import torch.nn.functional as F
 import numpy as np
 from matplotlib import pyplot as plt
 
-from acoustic_locating_vq_vae.rir_dataset_generator.rir_dataset import RIR_DATASET
-from acoustic_locating_vq_vae.vq_vae.deconvolutional_decoder import DeconvolutionalDecoder
+from acoustic_locating_vq_vae.rir_dataset_generator.specsdataset import SpecsDataset
 from acoustic_locating_vq_vae.visualization import plot_spectrogram
-from acoustic_locating_vq_vae.data_preprocessing import rir_data_preprocessing
-
-
+from acoustic_locating_vq_vae.data_preprocessing import spec_dataset_preprocessing
+from acoustic_locating_vq_vae.vq_vae.echoed_speech_model import EchoedSpeechReconModel
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-class EchoedSpeechReconModel(nn.Module):
-    def __init__(self, rir_model, speech_model, out_channels, num_hiddens, num_residual_layers,
-                 num_residual_hiddens, use_jitter):
-        super(EchoedSpeechReconModel, self).__init__()
-
-        self.rir_model = rir_model.to(device)
-        self.speech_model = speech_model.to(device)
-
-        self.rir_model._vq.set_train_vq(False)
-        self.speech_model._vq.set_train_vq(False)
-
-        self.embedding_dim = self.rir_model.get_embedding_dim() + self.speech_model.get_embedding_dim()
-
-        self._decoder = DeconvolutionalDecoder(
-            in_channels=self.embedding_dim,
-            out_channels=out_channels,
-            num_hiddens=num_hiddens,
-            num_residual_layers=num_residual_layers,
-            num_residual_hiddens=num_residual_hiddens,
-            use_jitter=use_jitter,
-            jitter_probability=0.25,
-        )
-
-    def forward(self, spec_in, spec_in_rir):
-        _, rir_quantized, rir_perplexity, _ = self.rir_model.get_latent_representation(spec_in_rir)
-
-        _, speech_quantized, speech_perplexity, _ = self.speech_model.get_latent_representation(spec_in)
-
-        size_diff = speech_quantized.size(2) - rir_quantized.size(2)
-
-        # Pad rir_quantized tensor
-        if size_diff > 0:
-            # Calculate pad width
-            pad_width = (0, size_diff)  # Pad only along the third dimension
-
-            # Pad tensor
-            rir_quantized = F.pad(rir_quantized, pad_width)
-
-        quantized = torch.cat((speech_quantized.detach(), rir_quantized.detach()), dim=1)  # quantized shape is the same as speech_quantized
-
-        return self._decoder(quantized), speech_perplexity, rir_perplexity
-
-    def get_rir_quantaized(self, spec_in, spec_in_rir):
-        _, rir_quantized, rir_perplexity, _ = self.rir_model.get_latent_representation(spec_in_rir)
-
-        _, speech_quantized, speech_perplexity, _ = self.speech_model.get_latent_representation(spec_in)
-
 
 if __name__ == '__main__':
 
@@ -80,9 +28,9 @@ if __name__ == '__main__':
 
     DATASET_PATH = os.path.join(os.getcwd(), 'echoed_speech_data', 'dev_data')
 
-    train_data = RIR_DATASET(DATASET_PATH)
+    train_data = SpecsDataset(DATASET_PATH)
     train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True,
-                              collate_fn=lambda datum: rir_data_preprocessing(datum))
+                              collate_fn=lambda datum: spec_dataset_preprocessing(datum))
 
     sample_to_init, _, _, _, _, _ = next(iter(train_loader))
     out_channels = sample_to_init.shape[1]
