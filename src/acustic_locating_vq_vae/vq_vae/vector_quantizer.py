@@ -16,7 +16,15 @@ class VectorQuantizer(nn.Module):
         self._embedding.weight.data.uniform_(-1 / self._num_embeddings, 1 / self._num_embeddings)
         self._commitment_cost = commitment_cost
 
-        self.flag_flatten = flag_flatten
+        self._train_vq = True
+
+        self._flag_flatten = flag_flatten
+
+    def get_embedding_dim(self):
+        return self._embedding_dim
+
+    def set_train_vq(self, train_vq):
+        self._train_vq = train_vq
 
     def forward(self, inputs):
         input_shape = inputs.shape
@@ -35,8 +43,12 @@ class VectorQuantizer(nn.Module):
         quantized = torch.matmul(encodings, self._embedding.weight).view(input_shape)
 
         # Loss
-        e_latent_loss = F.mse_loss(quantized.detach(), inputs)
-        q_latent_loss = F.mse_loss(quantized, inputs.detach())
+        e_latent_loss = F.mse_loss(quantized.detach(), inputs, reduction='sum')
+        if self._train_vq:
+            q_latent_loss = F.mse_loss(quantized, inputs.detach(), reduction='sum')
+        else:
+            q_latent_loss = F.mse_loss(quantized.detach(), inputs.detach(), reduction='sum')
+
         loss = q_latent_loss + self._commitment_cost * e_latent_loss
 
         quantized = inputs + (quantized - inputs).detach()

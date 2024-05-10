@@ -42,6 +42,7 @@ class Residual(nn.Module):
             padding=1,
             bias=False
         )
+        nn.init.kaiming_uniform_(conv_1.weight, a=0, mode="fan_in", nonlinearity="relu")
 
         relu_2 = nn.ReLU(True)
         conv_2 = nn.Conv1d(
@@ -51,6 +52,7 @@ class Residual(nn.Module):
             stride=1,
             bias=False
         )
+        nn.init.kaiming_uniform_(conv_1.weight, a=0, mode="fan_in", nonlinearity="relu")
 
         # All parameters same as specified in the paper
         self._block = nn.Sequential(

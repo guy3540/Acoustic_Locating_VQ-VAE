@@ -23,6 +23,7 @@ class DeconvolutionalDecoder(nn.Module):
             stride=1,
             padding=1
         )
+        nn.init.kaiming_uniform_(self._conv_1.weight, a=0, mode="fan_in", nonlinearity="relu")
 
         self._upsample = nn.Upsample(scale_factor=2)
 
@@ -40,6 +41,7 @@ class DeconvolutionalDecoder(nn.Module):
             stride=1,
             padding=1
         )
+        nn.init.kaiming_uniform_(self._conv_trans_1.weight, a=0, mode="fan_in", nonlinearity="relu")
 
         self._conv_trans_2 = nn.ConvTranspose1d(
             in_channels=num_hiddens,
@@ -48,6 +50,7 @@ class DeconvolutionalDecoder(nn.Module):
             stride=1,
             padding=0
         )
+        nn.init.kaiming_uniform_(self._conv_trans_2.weight, a=0, mode="fan_in", nonlinearity="relu")
 
         self._conv_trans_3 = nn.ConvTranspose1d(
             in_channels=num_hiddens,
@@ -56,6 +59,7 @@ class DeconvolutionalDecoder(nn.Module):
             stride=1,
             padding=0
         )
+        nn.init.kaiming_uniform_(self._conv_trans_3.weight, a=0, mode="fan_in", nonlinearity="relu")
 
     def forward(self, inputs):
         # x, BCL

@@ -35,6 +35,7 @@ class ConvolutionalVQVAE(nn.Module):
             kernel_size=3,
             padding=1
         )
+        nn.init.kaiming_uniform_(self._pre_vq_conv.weight, a=0, mode="fan_in", nonlinearity="relu")
 
         self._vq = VectorQuantizer(
             num_embeddings=num_embeddings,
@@ -50,6 +51,9 @@ class ConvolutionalVQVAE(nn.Module):
             use_jitter=use_jitter,
             jitter_probability=0.25,
         )
+
+    def get_embedding_dim(self):
+        return self._vq.get_embedding_dim()
 
     def train_on_data(self, optimizer: optim, dataloader: DataLoader, num_training_updates, data_variance):
         self.train()
@@ -89,8 +93,8 @@ class ConvolutionalVQVAE(nn.Module):
     def forward(self, x):
         z = self._encoder(x)
         z = self._pre_vq_conv(z)
-        # if self.encoder_average_pooling:
-        #     z = torch.mean(z, dim=2, keepdim=True)
+        if self.encoder_average_pooling:
+            z = torch.mean(z, dim=2, keepdim=True)
         loss, quantized, perplexity, _ = self._vq(z)
         x_recon = self._decoder(quantized)
         return loss, x_recon, perplexity
