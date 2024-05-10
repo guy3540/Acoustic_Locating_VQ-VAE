@@ -8,8 +8,9 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from acustic_locating_vq_vae.rir_dataset_generator.rir_dataset import RIR_DATASET
+from acustic_locating_vq_vae.vq_vae.deconvolutional_decoder import DeconvolutionalDecoder
 from acustic_locating_vq_vae.visualization import plot_spectrogram
-from train_rir import rir_data_preprocessing, rir_data_preprocess_permute_normalize_and_cut
+from train_rir import rir_data_preprocessing
 
 
 rir_model = torch.load(os.path.join(os.path.dirname(__file__), '..', 'models', 'model_rir.pt'))
@@ -37,26 +38,40 @@ class EchoedSpeechReconModel(nn.Module):
         self.rir_model._vq.set_train_vq(False)
         self.speech_model._vq.set_train_vq(False)
 
-        self.embedding_dim = self.rir_model.get_embedding_dim()  #+ self.speech_model.get_embedding_dim()
+        self.embedding_dim = self.rir_model.get_embedding_dim() + self.speech_model.get_embedding_dim()
+
+        self._decoder = DeconvolutionalDecoder(
+            in_channels=self.embedding_dim,
+            out_channels=out_channels,
+            num_hiddens=num_hiddens,
+            num_residual_layers=num_residual_layers,
+            num_residual_hiddens=num_residual_hiddens,
+            use_jitter=use_jitter,
+            jitter_probability=0.25,
+        )
 
     def forward(self, spec_in, spec_in_rir):
         _, rir_quantized, rir_perplexity, _ = self.rir_model.get_latent_representation(spec_in_rir)
 
         _, speech_quantized, speech_perplexity, _ = self.speech_model.get_latent_representation(spec_in)
 
-        ## Assume that speech_quantized is [Batch_Size, embedding_dim, t]
-        ## Assume that rir_quantized is [Batch_Size, embedding_dim, 1]
-        rir_quantized = torch.mean(rir_quantized, dim=2).unsqueeze(2)
-        print("Warning: edited rir_quantized")
+        size_diff = speech_quantized.size(2) - rir_quantized.size(2)
 
-        #######
+        # Pad rir_quantized tensor
+        if size_diff > 0:
+            # Calculate pad width
+            pad_width = (0, size_diff)  # Pad only along the third dimension
 
-        quantized = speech_quantized * rir_quantized  # quantized shape is the same as speech_quantized
+            # Pad tensor
+            rir_quantized = F.pad(rir_quantized, pad_width)
 
-        return self.speech_model._decoder(quantized), speech_perplexity, rir_perplexity
+        quantized = torch.cat((speech_quantized.detach(), rir_quantized.detach()), dim=1)  # quantized shape is the same as speech_quantized
+
+        return self._decoder(quantized), speech_perplexity, rir_perplexity
 
 
-DATASET_PATH = os.path.join(os.path.dirname(__file__), 'train_data')
+DATASET_PATH = os.path.join(os.getcwd(), 'echoed_speech_data', 'dev_data')
+
 train_data = RIR_DATASET(DATASET_PATH)
 train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True,
                           collate_fn=lambda datum: rir_data_preprocessing(datum))
@@ -75,16 +90,15 @@ train_rir_perp = []
 
 model.train()
 for i in xrange(num_training_updates):
-    x, wiener_est, source_coordinates, mic, room, fs = next(iter(train_loader))
+    x, winner_est, source_coordinates, mic, room, fs = next(iter(train_loader))
     x = x.type(torch.FloatTensor)
     x = x.to(device)
     x = (x - torch.mean(x, dim=1, keepdim=True)) / (torch.std(x, dim=1, keepdim=True) + 1e-8)
 
-    x_rir, wiener_est, source_coordinates, mic, room, fs = rir_data_preprocess_permute_normalize_and_cut(
-        (x, wiener_est, source_coordinates, mic, room, fs))
+    x_rir = torch.permute(x, [0, 2, 1])
 
     optimizer.zero_grad()
-    reconstructed_x, speech_perplexity, rir_perplexity = model(x, x_rir.to(device))
+    reconstructed_x, speech_perplexity, rir_perplexity = model(x, x_rir)
 
     if not x.shape == reconstructed_x.shape:
         reduction = reconstructed_x.shape[2] - x.shape[2]

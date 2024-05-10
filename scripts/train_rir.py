@@ -27,16 +27,12 @@ def rir_data_preprocessing(data):
     mic_list = []
     room_list = []
     fs_list = []
-    for (spec, winner_est, source_coordinates, mic, room, fs) in data:
+    for (spec, winner_est) in data:
         if spec.shape[1] < 500:
             continue
         else:
             ispec = spec[:, :500]
         spectrograms.append(torch.unsqueeze(torch.from_numpy(ispec), dim=0))
-        source_coordinates_list.append(source_coordinates)
-        mic_list.append(mic)
-        room_list.append(room)
-        fs_list.append(fs)
         winner_est_list.append(winner_est)
     spectrograms = combine_tensors_with_min_dim(spectrograms)
 

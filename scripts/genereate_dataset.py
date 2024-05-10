@@ -21,7 +21,7 @@ Z_LOC_SOURCE = 1
 
 
 LibriSpeech_PATH = os.path.join(os.getcwd(), 'data')
-DATASET_DEST_PATH = os.path.join(os.getcwd(), 'rir_dataset_generator', 'dev_data')
+DATASET_DEST_PATH = os.path.join(os.getcwd(), 'echoed_speech_data', 'dev_data')
 Path(DATASET_DEST_PATH).mkdir(parents=True, exist_ok=True)
 
 NFFT = int(fs * 0.025)
@@ -63,7 +63,7 @@ def data_preprocessing(data):
         waveform_h = ss.convolve(waveform.squeeze(), h_RIR.squeeze(), mode='same')
         spec_with_h = audio_transformer(torch.from_numpy(waveform_h))
 
-        spec = np.divide(spec_signal, spec_with_h+1e-8)
+        spec = spec_with_h
         spec_final = np.divide(spec, np.abs(spec).max())
 
         winner_est = torch.sum(spec_with_h * np.conjugate(spec_signal), dim =1) / (torch.sum(spec_signal*np.conjugate(spec_signal), dim=1)  + 1e-8)
