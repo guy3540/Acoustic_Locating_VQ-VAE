@@ -25,7 +25,7 @@
  #   SOFTWARE.                                                                       #
  #####################################################################################
 
-from src.acustic_locating_vq_vae.vq_vae.modules.residual import Residual
+from src.acoustic_locating_vq_vae.vq_vae.modules.residual import Residual
 
 import torch.nn as nn
 import torch.nn.functional as F

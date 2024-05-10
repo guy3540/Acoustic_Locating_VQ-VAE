@@ -16,7 +16,7 @@ room_dimensions = [4, 5, 3]
 reverberation_time = 0.4
 n_sample = int(reverberation_time * fs)
 R = 1
-DATASET_SIZE = 100
+DATASET_SIZE = 10000
 Z_LOC_SOURCE = 1
 
 
@@ -85,7 +85,7 @@ for i_sample in range(DATASET_SIZE):
     theta_array.append(theta)
     scaled = np.int16(spec_final / np.abs(spec_final).max() * 32767)
     winner_est_scaled = np.int16(winner_est / np.abs(winner_est).max() * 32767)
-    torch.save((scaled, winner_est_scaled), filename)
+    torch.save((scaled, sample_rate, theta, winner_est_scaled), filename)
 
 np.save(os.path.join(DATASET_DEST_PATH, 'theta.npy'), np.array(theta_array))
 np.save(os.path.join(DATASET_DEST_PATH, 'dataset_config.npy'), dataset_config)

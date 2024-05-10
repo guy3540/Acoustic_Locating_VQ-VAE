@@ -31,9 +31,9 @@ class RIR_DATASET(Dataset):
     def __getitem__(self, idx):
         item_filename = "{}.pt".format(idx)
         item_path = os.path.join(self.root_dir, item_filename)
-        spectrogram, wiener_est = torch.load(item_path)
+        spec, fs, theta, winner_est = torch.load(item_path)
 
-        return spectrogram, wiener_est
+        return spec, fs, theta, winner_est
 
     def get_source_coordinates(self, theta):
 

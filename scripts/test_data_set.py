@@ -1,7 +1,7 @@
 import torch
 import os
 
-from acustic_locating_vq_vae.rir_dataset_generator.rir_dataset import RIR_DATASET
+from acoustic_locating_vq_vae.rir_dataset_generator.rir_dataset import RIR_DATASET
 
 dataset = RIR_DATASET(root_dir=os.path.join(os.getcwd(), 'rir_dataset_generator', 'dev_data'))
 

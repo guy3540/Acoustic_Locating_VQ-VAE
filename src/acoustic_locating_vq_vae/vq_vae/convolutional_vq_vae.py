@@ -3,9 +3,9 @@ from torch import optim
 from torch.utils.data import DataLoader
 from six.moves import xrange
 
-from acustic_locating_vq_vae.vq_vae.convolutional_encoder import ConvolutionalEncoder
-from acustic_locating_vq_vae.vq_vae.deconvolutional_decoder import DeconvolutionalDecoder
-from acustic_locating_vq_vae.vq_vae.vector_quantizer import VectorQuantizer
+from acoustic_locating_vq_vae.vq_vae.convolutional_encoder import ConvolutionalEncoder
+from acoustic_locating_vq_vae.vq_vae.deconvolutional_decoder import DeconvolutionalDecoder
+from acoustic_locating_vq_vae.vq_vae.vector_quantizer import VectorQuantizer
 
 import torch.nn as nn
 import torch

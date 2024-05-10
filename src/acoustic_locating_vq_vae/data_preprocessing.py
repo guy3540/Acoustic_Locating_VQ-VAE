@@ -138,3 +138,23 @@ def echoed_spec_from_random_rir(data, Z_LOC_SOURCE, R, room_dimensions, receiver
         sample_rate_list.append(sample_rate)
 
     return echoed_spec_list, rir_spec_list, unechoed_spec_list, sample_rate_list, theta_list, wiener_est_list
+
+
+def rir_data_preprocessing(data):
+    spectrograms = []
+    winner_est_list = []
+    theta_est_list = []
+    fs_list = []
+    for (spec, fs, theta, winner_est) in data:
+        if spec.shape[1] < 500:
+            continue
+        else:
+            ispec = spec[:, :500]
+        spectrograms.append(torch.unsqueeze(torch.from_numpy(ispec), dim=0))
+        winner_est_list.append(winner_est)
+        theta_est_list.append(theta)
+        fs_list.append(fs)
+    spectrograms = combine_tensors_with_min_dim(spectrograms)
+
+    return spectrograms,  fs_list, theta_est_list ,torch.as_tensor(
+        np.asarray(winner_est_list))
