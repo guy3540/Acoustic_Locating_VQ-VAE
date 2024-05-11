@@ -111,8 +111,9 @@ if __name__ == '__main__':
 
     f = plt.figure(figsize=(16, 8))
     ax = f.add_subplot(1, 1, 1)
-    ax.plot(train_res_recon_error)
-    ax.plot([(ind+1)*n_samples_test_on_validation_set for ind in range(len(val_error))], val_error)
+    ax.plot(train_res_recon_error, label='train_dataset')
+    ax.plot([(ind+1)*n_samples_test_on_validation_set for ind in range(len(val_error))], val_error,
+            label='validation_dataset')
     ax.set_yscale('log')
     ax.set_title('Smoothed NMSE.')
     ax.set_xlabel('iteration')

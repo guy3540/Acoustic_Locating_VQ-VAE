@@ -127,7 +127,8 @@ def train_location(combined_model: EchoedSpeechReconModel, location_model, optim
     f = plt.figure()
     ax = f.add_subplot(1, 1, 1)
     ax.plot(train_location_error, label='train_dataset')
-    ax.plot([(ind+1)*n_samples_test_on_validation_set for ind in range(len(val_error))], val_error)
+    ax.plot([(ind+1)*n_samples_test_on_validation_set for ind in range(len(val_error))], val_error,
+            label='validation_dataset')
     ax.legend()
     ax.set_yscale('log')
     ax.set_title('location estimation, Train vs Test error')
