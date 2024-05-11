@@ -14,28 +14,32 @@ from acoustic_locating_vq_vae.vq_vae.location_model.location_model import Locati
 from acoustic_locating_vq_vae.vq_vae.echoed_speech_model import EchoedSpeechReconModel
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+n_samples_test_on_validation_set = 500
 
 
 def run_location_training():
-    DATASET_PATH = Path(os.getcwd()) / 'spec_data' / 'dev_data'
+    DATASET_PATH = Path(os.getcwd()) / 'spec_data' / '10k_set'
+    VAL_DATASET_PATH = Path(os.getcwd()) / 'spec_data' / 'val_set'
     encoder_output_dim = 101
     embedding_dim = 40
     BATCH_SIZE = 64
-    num_training_updates = 150
+    num_training_updates = 15000
     train_percent = 0.95
 
-    dataset = SpecsDataset(DATASET_PATH)
-    dataset_size = len(dataset)
-    train_data, test_data = torch.utils.data.random_split(dataset, [int(dataset_size * train_percent),
-                                                                    int(dataset_size * (1 - train_percent))])
+    train_data = SpecsDataset(DATASET_PATH)
+    val_data = SpecsDataset(VAL_DATASET_PATH)
 
     train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True,
                               collate_fn=lambda x: spec_dataset_preprocessing(x))
+
+    val_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True,
+                              collate_fn=lambda x: spec_dataset_preprocessing(x))
+
     vae_model = torch.load("/home/guy/PycharmProjects/Acoustic_Locating_VQ-VAE/models/model_echoed_speech.pt").to(device)
     location_model = LocationModule(encoder_output_dim, embedding_dim, 1).to(device)
     optimizer = torch.optim.Adam(location_model.parameters(), lr=1e-3)
 
-    train_location(vae_model, location_model, optimizer, num_training_updates, train_loader, test_data)
+    train_location(vae_model, location_model, optimizer, num_training_updates, train_loader, val_loader)
 
 
 def evaluate_location_model(test_data, location_model):
@@ -66,17 +70,23 @@ def evaluate_location_model(test_data, location_model):
 
 
 def train_location(combined_model: EchoedSpeechReconModel, location_model, optimizer, num_training_updates, train_loader,
-                   test_data):
+                   val_loader):
     combined_model.eval()
     location_model.train()
 
     train_location_error = []
     test_location_error = []
+    val_error = []
+    last_error_val_test = float('inf')
 
     # waveform B,C,S
     for i in xrange(num_training_updates):
 
-        _, _, echoed_specs, _, theta, _ = next(iter(train_loader))
+        if (i + 1) % n_samples_test_on_validation_set == 0:  # Test on validation test for early stopping
+            location_model.eval()
+            _, _, echoed_specs, _, theta, _ = next(iter(val_loader))
+        else:
+            _, _, echoed_specs, _, theta, _ = next(iter(train_loader))
         x = echoed_specs.type(torch.FloatTensor)
         x = x.to(device)
         x = (x - torch.mean(x, dim=1, keepdim=True)) / (torch.std(x, dim=1, keepdim=True) + 1e-8)
@@ -89,15 +99,24 @@ def train_location(combined_model: EchoedSpeechReconModel, location_model, optim
         location = location_model(quantized)
 
         loss = F.mse_loss(location, torch.as_tensor(theta).float().to(device), reduction='sum')
-        loss.backward()
 
-        optimizer.step()
+        if (i + 1) % n_samples_test_on_validation_set == 0:  # Test on validation test for early stopping
+            if len(val_error) > 2:
+                print('previous_val_recon_error: %.3f' % last_error_val_test)
+                if loss > last_error_val_test:
+                    print('val_recon_error: %.3f' % loss.item())
+                    # break
+            last_error_val_test = loss
 
-        train_location_error.append(loss.item())
+            print('val_recon_error: %.3f' % loss.item())
+            val_error.append(loss.item())
+            location_model.train()
+        else:
+            loss.backward()
 
-        # mea_test_error = evaluate_location_model(test_data, location_model)
-        location_model.train()
-        # test_location_error.append(mea_test_error)
+            optimizer.step()
+
+            train_location_error.append(loss.item())
 
         if (i + 1) % 10 == 0:
             print('%d iterations' % (i + 1))
@@ -108,13 +127,14 @@ def train_location(combined_model: EchoedSpeechReconModel, location_model, optim
     f = plt.figure()
     ax = f.add_subplot(1, 1, 1)
     ax.plot(train_location_error, label='train_dataset')
-    ax.plot(test_location_error, label='test_dataset')
+    ax.plot([(ind+1)*n_samples_test_on_validation_set for ind in range(len(val_error))], val_error,
+            label='validation_dataset')
     ax.legend()
     ax.set_yscale('log')
     ax.set_title('location estimation, Train vs Test error')
     ax.set_xlabel('iteration')
 
-    torch.save(location_model, 'location_model.pt')
+    torch.save(location_model, '../models/location_model.pt')
     plt.show()
 
 if __name__ == '__main__':

@@ -19,7 +19,8 @@ from acoustic_locating_vq_vae.rir_dataset_generator.specsdataset import SpecsDat
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-DATASET_PATH = os.path.join(os.getcwd(), "spec_data", "dev_data")
+DATASET_PATH = os.path.join(os.getcwd(), "spec_data", "10k_set")
+VAL_DATASET_PATH = os.path.join(os.getcwd(), "spec_data", "val_set")
 BATCH_SIZE = 64
 LR = 1e-3  # as is in the speach article
 SAMPLING_RATE = 16e3
@@ -33,11 +34,14 @@ in_channels = IN_FEATURE_SIZE
 num_residual_layers = 10
 num_residual_hiddens = 20
 embedding_dim = 40
-num_embeddings = 512  # The higher this value, the higher the capacity in the information bottleneck.
+num_embeddings = 1024  # The higher this value, the higher the capacity in the information bottleneck.
 commitment_cost = 0.25  # as recommended in VQ VAE article
 
 use_jitter = True
 jitter_probability = 0.12
+
+n_samples_test_on_validation_set = 500
+last_error_val_test = float('inf')
 
 rev = 0.3
 olap = 0.75
@@ -50,10 +54,15 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
 
     train_res_recon_error = []
     train_res_perplexity = []
+    val_error = []
 
     # waveform B,C,S
     for i in xrange(num_training_updates):
-        (x, _, _, fs, _, _) = next(iter(train_loader))
+        if (i + 1) % n_samples_test_on_validation_set == 0:  # Test on validation test for early stopping
+            model.eval()
+            (x, _, _, fs, _, _) = next(iter(val_loader))
+        else:
+            (x, _, _, fs, _, _) = next(iter(train_loader))
         x = x.to(device)
         x = torch.abs(x)
         x = (x - torch.mean(x, dim=1, keepdim=True)) / (torch.std(x, dim=1, keepdim=True) + 1e-8)
@@ -67,13 +76,26 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
             reconstructed_x = reconstructed_x[:, :, :-reduction]
 
         recon_error = F.mse_loss(reconstructed_x, x, reduction='mean')
-        loss = recon_error + vq_loss
-        loss.backward()
 
-        optimizer.step()
+        if (i + 1) % n_samples_test_on_validation_set == 0:  # Test on validation test for early stopping
+            if len(val_error) > 0:
+                print('previous_val_recon_error: %.3f' % last_error_val_test)
+                # if recon_error > last_error_val_test:
+                #     print('val_recon_error: %.3f' % recon_error.item())
+                    # break
+            last_error_val_test = recon_error
 
-        train_res_recon_error.append(recon_error.item())
-        train_res_perplexity.append(perplexity.item())
+            print('val_recon_error: %.3f' % recon_error.item())
+            val_error.append(recon_error.item())
+            model.train()
+        else:
+            loss = recon_error + vq_loss
+            loss.backward()
+
+            optimizer.step()
+
+            train_res_recon_error.append(recon_error.item())
+            train_res_perplexity.append(perplexity.item())
 
         if (i + 1) % 10 == 0:
             print('%d iterations' % (i + 1))
@@ -83,7 +105,7 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
             print(f'min in x {torch.min(x).item():.5f}. min recon {torch.min(reconstructed_x).item():.5f} ')
             print(f'vq loss out of total loss {((vq_loss/loss)*100).item():.5f}')
             print()
-        if (i + 1) % 50 == 0:
+        if (i + 1) % 500 == 0:
             fig, (ax1, ax2) = plt.subplots(2, 1)
             plot_spectrogram(torch.hstack((x[0].detach(), reconstructed_x[0].detach())).to('cpu'),
                              title=f"{i} Spectrogram - input", ylabel="freq", ax=ax1)
@@ -97,12 +119,15 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
 
             plt.show()
 
+
     train_res_recon_error_smooth = train_res_recon_error
     train_res_perplexity_smooth = train_res_perplexity
 
     f = plt.figure(figsize=(16, 8))
     ax = f.add_subplot(1, 2, 1)
-    ax.plot(train_res_recon_error_smooth)
+    ax.plot(train_res_recon_error_smooth, label='train_dataset')
+    ax.plot([(ind+1) * n_samples_test_on_validation_set for ind in range(len(val_error))], val_error,
+            label='validation_dataset')
     ax.set_yscale('log')
     ax.set_title('Smoothed NMSE.')
     ax.set_xlabel('iteration')
@@ -120,8 +145,12 @@ if __name__ == '__main__':
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,
                               collate_fn=lambda x: spec_dataset_preprocessing(x))
 
+    val_dataset = SpecsDataset(root_dir=VAL_DATASET_PATH, transform=None)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=True,
+                              collate_fn=lambda x: spec_dataset_preprocessing(x))
+
     model = ConvolutionalVQVAE(in_channels, num_hiddens, embedding_dim, num_residual_layers, num_residual_hiddens,
                                commitment_cost, num_embeddings).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, amsgrad=False)
-    train(model=model, optimizer=optimizer, num_training_updates=150)
+    train(model=model, optimizer=optimizer, num_training_updates=15000)
     print("Done")
