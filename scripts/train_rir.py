@@ -18,16 +18,27 @@ from acoustic_locating_vq_vae.vq_vae.convolutional_vq_vae import ConvolutionalVQ
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
 @profile
-def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_training_updates):
+def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_training_updates, val_loader):
     model.train()
 
     train_res_recon_error = []
     train_res_perplexity = []
+    vq_loss_list = []
+
+    val_error = []
+    n_samples_test_on_validation_set = 500
+    last_error_val_test = float('inf')
 
     # waveform B,C,S
     for i in xrange(num_training_updates):
-        _, rir_spec, _, _, _, wiener_est = next(iter(train_loader))
+        if (i + 1) % n_samples_test_on_validation_set == 0:  # Test on validation test for early stopping
+            model.eval()
+            _, rir_spec, _, _, _, wiener_est = next(iter(val_loader))
+        else:
+            _, rir_spec, _, _, _, wiener_est = next(iter(train_loader))
+
         x = rir_spec.type(torch.FloatTensor)
         x = x.to(device)
         x = (x - torch.mean(x, dim=1, keepdim=True)) / (torch.std(x, dim=1, keepdim=True) + 1e-8)
@@ -45,17 +56,32 @@ def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_trainin
             recon_error = F.mse_loss(reconstructed_x[:, :, :-reduction], wiener_est)  # / data_variance
         else:
             recon_error = F.mse_loss(reconstructed_x, wiener_est)
-        loss = recon_error + vq_loss
-        loss.backward()
 
-        optimizer.step()
+        if (i + 1) % n_samples_test_on_validation_set == 0:  # Test on validation test for early stopping
+            if len(val_error) > 2:
+                print('previous_val_recon_error: %.3f' % last_error_val_test)
+                if recon_error > last_error_val_test:
+                    print('val_recon_error: %.3f' % recon_error.item())
+                    # break
+            last_error_val_test = recon_error
 
-        train_res_recon_error.append(recon_error.item())
-        train_res_perplexity.append(perplexity.item())
+            print('val_recon_error: %.3f' % recon_error.item())
+            val_error.append(recon_error.item())
+            model.train()
+        else:
+            loss = recon_error + vq_loss
+            loss.backward()
 
-        if (i + 1) % 100 == 0:
+            optimizer.step()
+
+            train_res_recon_error.append(recon_error.item())
+            train_res_perplexity.append(perplexity.item())
+            vq_loss_list.append(vq_loss.item())
+
+        if (i + 1) % 10 == 0:
             print('%d iterations' % (i + 1))
             print('recon_error: %.3f' % np.mean(train_res_recon_error[-100:]))
+            print('vq_error: %.3f' % np.mean(vq_loss_list[-100:]))
             print('perplexity: %.3f' % np.mean(train_res_perplexity[-100:]))
             print()
         if (i + 1) % 500 == 0:
@@ -72,6 +98,7 @@ def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_trainin
     f = plt.figure(figsize=(16, 8))
     ax = f.add_subplot(1, 2, 1)
     ax.plot(train_res_recon_error_smooth)
+    ax.plot([(ind+1)*n_samples_test_on_validation_set for ind in range(len(val_error))], val_error)
     ax.set_yscale('log')
     ax.set_title('Smoothed NMSE.')
     ax.set_xlabel('iteration')
@@ -85,11 +112,12 @@ def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_trainin
 
 
 def run_rir_training():
-    DATASET_PATH = Path(os.getcwd()) / 'spec_data' / 'dev_data'
+    DATASET_PATH = Path(os.getcwd()) / 'spec_data' / '10k_set'
+    VAL_DATASET_PATH = Path(os.getcwd()) / 'spec_data' / 'val_set'
     BATCH_SIZE = 64
     LR = 1e-3
     IN_FEATURE_SIZE = 500
-    num_training_updates = 150
+    num_training_updates = 15000
 
     # CONV VQVAE
     num_hiddens = 40
@@ -98,7 +126,7 @@ def run_rir_training():
     num_residual_layers = 2
     num_residual_hiddens = 20
     embedding_dim = 40
-    num_embeddings = 512  # The higher this value, the higher the capacity in the information bottleneck.
+    num_embeddings = 1024  # The higher this value, the higher the capacity in the information bottleneck.
     commitment_cost = 0.25  # as recommended in VQ VAE article
     use_jitter = False
 
@@ -106,12 +134,17 @@ def run_rir_training():
     train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True,
                               collate_fn=lambda x: spec_dataset_preprocessing(x))
 
+    val_data = SpecsDataset(VAL_DATASET_PATH)
+    val_loader = DataLoader(val_data, batch_size=BATCH_SIZE, shuffle=True,
+                              collate_fn=lambda x: spec_dataset_preprocessing(x))
+
     model = ConvolutionalVQVAE(in_channels, num_hiddens, embedding_dim, num_residual_layers, num_residual_hiddens,
                                commitment_cost, num_embeddings, use_jitter=use_jitter, out_channels=out_channels
                                ).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, amsgrad=False)
-    train_vq_vae(model=model, optimizer=optimizer, train_loader=train_loader, num_training_updates=num_training_updates)
+    train_vq_vae(model=model, optimizer=optimizer, train_loader=train_loader,
+                 val_loader=val_loader, num_training_updates=num_training_updates)
 
 
 if __name__ == '__main__':
