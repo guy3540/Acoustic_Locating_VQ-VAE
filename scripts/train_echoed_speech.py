@@ -16,7 +16,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 if __name__ == '__main__':
 
     rir_model = torch.load(os.path.join(os.path.dirname(__file__), '..', 'models', 'model_rir.pt'))
-    speech_model = torch.load(os.path.join(os.path.dirname(__file__), '..', 'models', 'model_speech_good_10k_set.pt'))
+    speech_model = torch.load(os.path.join(os.path.dirname(__file__), '..', 'models', 'model_speech.pt'))
 
     BATCH_SIZE = 64
     num_training_updates = 15000

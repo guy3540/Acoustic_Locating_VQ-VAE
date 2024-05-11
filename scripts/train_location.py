@@ -133,7 +133,7 @@ def train_location(combined_model: EchoedSpeechReconModel, location_model, optim
     ax.set_title('location estimation, Train vs Test error')
     ax.set_xlabel('iteration')
 
-    torch.save(location_model, 'location_model.pt')
+    torch.save(location_model, '../models/location_model.pt')
     plt.show()
 
 if __name__ == '__main__':
