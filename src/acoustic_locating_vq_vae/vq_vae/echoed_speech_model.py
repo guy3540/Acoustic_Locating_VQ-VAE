@@ -16,6 +16,7 @@ class EchoedSpeechReconModel(nn.Module):
 
         self.rir_model._vq.set_train_vq(False)
         self.speech_model._vq.set_train_vq(False)
+        self.flag_train_encoder = False
 
         self.embedding_dim = self.rir_model.get_embedding_dim() + self.speech_model.get_embedding_dim()
 
@@ -28,6 +29,9 @@ class EchoedSpeechReconModel(nn.Module):
             use_jitter=use_jitter,
             jitter_probability=0.25,
         )
+
+    def set_train_encoder(self, flag):
+        self.flag_train_encoder = flag
 
     def forward(self, spec_in, spec_in_rir):
         _, rir_quantized, rir_perplexity, _ = self.rir_model.get_latent_representation(spec_in_rir)
@@ -44,6 +48,9 @@ class EchoedSpeechReconModel(nn.Module):
             # Pad tensor
             rir_quantized = F.pad(rir_quantized, pad_width)
 
-        quantized = torch.cat((speech_quantized.detach(), rir_quantized.detach()), dim=1)  # quantized shape is the same as speech_quantized
+        if self.flag_train_encoder:
+            quantized = torch.cat((speech_quantized, rir_quantized), dim=1)
+        else:
+            quantized = torch.cat((speech_quantized.detach(), rir_quantized.detach()), dim=1)
 
         return self._decoder(quantized), speech_perplexity, rir_perplexity
