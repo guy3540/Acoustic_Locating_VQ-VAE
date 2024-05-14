@@ -19,22 +19,24 @@ from acoustic_locating_vq_vae.rir_dataset_generator.specsdataset import SpecsDat
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-DATASET_PATH = os.path.join(os.getcwd(), "spec_data", "10k_set")
+DATASET_PATH = os.path.join(os.getcwd(), "spec_data", "20k_set")
 VAL_DATASET_PATH = os.path.join(os.getcwd(), "spec_data", "val_set")
-BATCH_SIZE = 64
+cfg_dict = np.load(os.path.join(DATASET_PATH, 'dataset_config.npy'), allow_pickle=True).item()
+
+BATCH_SIZE = 32
 LR = 1e-3  # as is in the speach article
 SAMPLING_RATE = 16e3
-NFFT = 400
+NFFT = cfg_dict['NFFT']
 IN_FEATURE_SIZE = int((NFFT/2) + 1)
 # IN_FEATURE_SIZE = 80
-HOP_LENGTH = int(SAMPLING_RATE * 0.01)
+HOP_LENGTH = cfg_dict['HOP_LENGTH']
 output_features_dim = IN_FEATURE_SIZE
-num_hiddens = 40
+num_hiddens = 1024
 in_channels = IN_FEATURE_SIZE
-num_residual_layers = 10
-num_residual_hiddens = 20
-embedding_dim = 40
-num_embeddings = 1024  # The higher this value, the higher the capacity in the information bottleneck.
+num_residual_layers = 2
+num_residual_hiddens = 1024
+embedding_dim = 64
+num_embeddings = 512  # The higher this value, the higher the capacity in the information bottleneck.
 commitment_cost = 0.25  # as recommended in VQ VAE article
 
 use_jitter = True
@@ -42,10 +44,6 @@ jitter_probability = 0.12
 
 n_samples_test_on_validation_set = 500
 last_error_val_test = float('inf')
-
-rev = 0.3
-olap = 0.75
-noverlap = round(olap * NFFT)
 
 
 @profile
@@ -105,7 +103,7 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
             print(f'min in x {torch.min(x).item():.5f}. min recon {torch.min(reconstructed_x).item():.5f} ')
             print(f'vq loss out of total loss {((vq_loss/loss)*100).item():.5f}')
             print()
-        if (i + 1) % 500 == 0:
+        if (i + 1) % 100 == 0:
             fig, (ax1, ax2) = plt.subplots(2, 1)
             plot_spectrogram(torch.hstack((x[0].detach(), reconstructed_x[0].detach())).to('cpu'),
                              title=f"{i} Spectrogram - input", ylabel="freq", ax=ax1)

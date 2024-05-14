@@ -25,8 +25,6 @@ class DeconvolutionalDecoder(nn.Module):
         )
         nn.init.kaiming_uniform_(self._conv_1.weight, a=0, mode="fan_in", nonlinearity="relu")
 
-        self._upsample = nn.Upsample(scale_factor=2)
-
         self._residual_stack = ResidualStack(
             in_channels=num_hiddens,
             num_hiddens=num_hiddens,
@@ -48,16 +46,16 @@ class DeconvolutionalDecoder(nn.Module):
             out_channels=num_hiddens,
             kernel_size=3,
             stride=1,
-            padding=0
+            padding=1
         )
         nn.init.kaiming_uniform_(self._conv_trans_2.weight, a=0, mode="fan_in", nonlinearity="relu")
 
         self._conv_trans_3 = nn.ConvTranspose1d(
             in_channels=num_hiddens,
             out_channels=out_channels,
-            kernel_size=2,
+            kernel_size=3,
             stride=1,
-            padding=0
+            padding=1
         )
         nn.init.kaiming_uniform_(self._conv_trans_3.weight, a=0, mode="fan_in", nonlinearity="relu")
 
@@ -69,8 +67,6 @@ class DeconvolutionalDecoder(nn.Module):
             x = self._jitter(x)
 
         x = self._conv_1(x)
-
-        x = self._upsample(x)
 
         x = self._residual_stack(x)
 
