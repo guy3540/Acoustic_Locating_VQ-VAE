@@ -84,13 +84,15 @@ def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_trainin
             print('vq_error: %.3f' % np.mean(vq_loss_list[-100:]))
             print('perplexity: %.3f' % np.mean(train_res_perplexity[-100:]))
             print()
-        if (i + 1) % 500 == 0:
+        if (i + 1) % 250 == 0:
             fig, (ax1, ax2) = plt.subplots(1, 2)
-            plot_spectrogram(torch.squeeze(x[0]).detach().to('cpu'), title="Spectrogram - input", ylabel="mag", ax=ax1)
-            ax2.plot(torch.squeeze(wiener_est[0]).detach().to('cpu'), label="Winner Estimate")
+            plot_spectrogram(torch.squeeze(x[0]).detach().to('cpu'), title="Spectrogram - input "+str(i+1), ylabel="mag", ax=ax1)
+            ax2.plot(torch.squeeze(wiener_est[0]).detach().to('cpu'), label="Wiener Estimate")
             ax2.plot(torch.squeeze(reconstructed_x[0]).detach().to('cpu'), label="reconstruction")
             ax2.legend()
             plt.show()
+        if (i + 1) % 1000 == 0:
+            torch.save(model, '../models/model_rir2_'+str(i+1)+'.pt')
 
     train_res_recon_error_smooth = train_res_recon_error
     train_res_perplexity_smooth = train_res_perplexity
@@ -109,24 +111,24 @@ def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_trainin
     ax.set_title('Smoothed Average codebook usage (perplexity).')
     ax.set_xlabel('iteration')
     plt.show()
-    torch.save(model, '../models/model_rir.pt')
+    torch.save(model, '../models/model_rir2.pt')
 
 
 def run_rir_training():
-    DATASET_PATH = Path(os.getcwd()) / 'spec_data' / '10k_set'
+    DATASET_PATH = Path(os.getcwd()) / 'spec_data' / '1k_samples'
     VAL_DATASET_PATH = Path(os.getcwd()) / 'spec_data' / 'val_set'
-    BATCH_SIZE = 64
+    BATCH_SIZE = 32
     LR = 1e-3
     IN_FEATURE_SIZE = 500
     num_training_updates = 15000
 
     # CONV VQVAE
-    num_hiddens = 40
+    num_hiddens = 1024
     in_channels = IN_FEATURE_SIZE
     out_channels = 1
     num_residual_layers = 2
-    num_residual_hiddens = 20
-    embedding_dim = 40
+    num_residual_hiddens = 64
+    embedding_dim = 64
     num_embeddings = 1024  # The higher this value, the higher the capacity in the information bottleneck.
     commitment_cost = 0.25  # as recommended in VQ VAE article
     use_jitter = False

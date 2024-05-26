@@ -76,6 +76,9 @@ def spec_dataset_preprocessing(data):
         theta_est_list.append(theta)
         fs_list.append(torch.as_tensor(sample_rate))
 
+    if len(speech_spec_list) == 0:
+        speech_specs= rir_specs= echoed_specs= fs_tensor= theta_tensor= wiener_est_tensor= []
+        return speech_specs, rir_specs, echoed_specs, fs_tensor, theta_tensor, wiener_est_tensor
     speech_specs = torch.stack(speech_spec_list)
     rir_specs = torch.stack(rir_spec_list)
     echoed_specs = torch.stack(echoed_spec_list)
