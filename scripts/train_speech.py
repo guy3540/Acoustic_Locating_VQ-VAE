@@ -120,6 +120,9 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
     train_res_recon_error_smooth = train_res_recon_error
     train_res_perplexity_smooth = train_res_perplexity
 
+    torch.save(train_res_recon_error_smooth, '../models/model_speech_recon_err_' + str(i + 1) + '.pt')
+    torch.save(train_res_perplexity_smooth, '../models/model_speech_perp_' + str(i + 1) + '.pt')
+
     f = plt.figure(figsize=(16, 8))
     ax = f.add_subplot(1, 2, 1)
     ax.plot(train_res_recon_error_smooth, label='train_dataset')

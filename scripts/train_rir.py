@@ -92,10 +92,13 @@ def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_trainin
             ax2.legend()
             plt.show()
         if (i + 1) % 1000 == 0:
-            torch.save(model, '../models/model_rir2_'+str(i+1)+'.pt')
+            torch.save(model, '../models/model_rir_'+str(i+1)+'.pt')
 
     train_res_recon_error_smooth = train_res_recon_error
     train_res_perplexity_smooth = train_res_perplexity
+
+    torch.save(train_res_recon_error_smooth, '../models/model_rir_recon_err_' + str(i + 1) + '.pt')
+    torch.save(train_res_perplexity_smooth, '../models/model_rir_perp_' + str(i + 1) + '.pt')
 
     f = plt.figure(figsize=(16, 8))
     ax = f.add_subplot(1, 2, 1)
@@ -111,7 +114,7 @@ def train_vq_vae(model: ConvolutionalVQVAE, optimizer, train_loader, num_trainin
     ax.set_title('Smoothed Average codebook usage (perplexity).')
     ax.set_xlabel('iteration')
     plt.show()
-    torch.save(model, '../models/model_rir2.pt')
+    torch.save(model, '../models/model_rir.pt')
 
 
 def run_rir_training():

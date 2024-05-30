@@ -15,8 +15,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 if __name__ == '__main__':
 
-    rir_model = torch.load(os.path.join(os.path.dirname(__file__), '..', 'models', 'model_rir2_8000.pt'))
-    speech_model = torch.load(os.path.join(os.path.dirname(__file__), '..', 'models', 'model_speech_11500.pt'))
+    rir_model = torch.load(os.path.join(os.path.dirname(__file__), '..', 'models', 'model_rir_15000.pt'))
+    speech_model = torch.load(os.path.join(os.path.dirname(__file__), '..', 'models', 'model_speech_10000.pt'))
 
     BATCH_SIZE = 64
     num_training_updates = 15000
@@ -110,6 +110,8 @@ if __name__ == '__main__':
             plt.show()
         if (i + 1) % 1000 == 0:
             torch.save(model, '../models/model_echoed_speech_'+str(i+1)+'.pt')
+
+    torch.save(train_res_recon_error, '../models/model_echoed_speech_recon_err_' + str(i + 1) + '.pt')
 
     f = plt.figure(figsize=(16, 8))
     ax = f.add_subplot(1, 1, 1)
