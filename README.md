@@ -11,6 +11,7 @@ The repository is structured as follows:
   * rir_dataset_generator: Contains the dataset class for generating RIR datasets.
   * vq_vae: Contains the classes used to create our models, including the encoder, decoder, vector quantizer, etc.
 * scripts: Contains the training functions and the dataset generation script.
+* scratch_scripts: a sandbox for scripts that are supposed to do a specific demonstration, such as creating a sound file from a spectrogram.
 
 ## Usage
 ### Data Preprocessing and Visualization
