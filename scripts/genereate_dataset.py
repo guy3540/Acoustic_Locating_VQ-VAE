@@ -9,8 +9,12 @@ from torch.utils.data import DataLoader
 from pathlib import Path
 
 
-def convert_speech_to_specs(data):
-    theta = torch.from_numpy(np.random.uniform(low=-np.pi, high=np.pi, size=1))
+def convert_speech_to_specs(data, fixed_rir, fixed_speech):
+    if fixed_rir:
+        theta = convert_speech_to_specs.theta
+    else:
+        theta = torch.from_numpy(np.random.uniform(low=-np.pi, high=np.pi, size=1))
+
     z_loc = np.array([Z_LOC_SOURCE])
     h_src_loc = np.stack((R * np.cos(theta), R * np.sin(theta), z_loc), axis=1) + receiver_position
     h_src_loc = np.minimum(h_src_loc, room_dimensions)
@@ -25,6 +29,11 @@ def convert_speech_to_specs(data):
     )
 
     for (waveform, sample_rate, _, _, _, _) in data:
+        if fixed_speech and len(convert_speech_to_specs.speech) == 0:
+            convert_speech_to_specs.speech = waveform
+        elif fixed_speech:
+            waveform = convert_speech_to_specs.speech
+
         speech_spec = np.squeeze(audio_transformer(waveform))
         waveform_h = ss.convolve(waveform.squeeze(), h_RIR.squeeze(), mode='same')
         echoed_spec = audio_transformer(torch.from_numpy(waveform_h))
@@ -50,11 +59,17 @@ if __name__ == '__main__':
     reverberation_time = 0.4
     n_sample = int(reverberation_time * fs)
     R = 1
-    DATASET_SIZE = 100
+    DATASET_SIZE = 1000
     Z_LOC_SOURCE = 1
 
+    fixed_rir = False
+    fixed_speech = False
+
+    convert_speech_to_specs.theta = torch.from_numpy(np.random.uniform(low=-np.pi, high=np.pi, size=1))
+    convert_speech_to_specs.speech = []
+
     LibriSpeech_PATH = os.path.join(os.getcwd(), 'data')
-    DATASET_DEST_PATH = os.path.join(os.getcwd(), 'spec_data', 'dev_data')
+    DATASET_DEST_PATH = os.path.join(os.getcwd(), 'spec_data', 'test')
     Path(DATASET_DEST_PATH).mkdir(parents=True, exist_ok=True)
 
     NFFT = int(fs * 0.025)
@@ -76,7 +91,8 @@ if __name__ == '__main__':
                                                           center=True, pad=0, normalized=True)
 
     train = torchaudio.datasets.LIBRISPEECH(LibriSpeech_PATH, url='train-clean-100', download=True)
-    train_loader = DataLoader(train, batch_size=1, shuffle=True, collate_fn=lambda x: convert_speech_to_specs(x))
+    train_loader = DataLoader(train, batch_size=1, shuffle=True,
+                              collate_fn=lambda x: convert_speech_to_specs(x, fixed_rir, fixed_speech))
 
     for i_sample in range(DATASET_SIZE):
         print('Generating sample: ', i_sample)

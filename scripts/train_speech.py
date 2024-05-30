@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 from six.moves import xrange
 from line_profiler_pycharm import profile
 
-
 from acoustic_locating_vq_vae.visualization import plot_spectrogram
 from acoustic_locating_vq_vae.vq_vae.convolutional_vq_vae import ConvolutionalVQVAE
 from acoustic_locating_vq_vae.data_preprocessing import spec_dataset_preprocessing
@@ -18,22 +17,23 @@ from acoustic_locating_vq_vae.rir_dataset_generator.specsdataset import SpecsDat
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
-DATASET_PATH = os.path.join(os.getcwd(), "spec_data", "10k_set")
+DATASET_PATH = os.path.join(os.getcwd(), "spec_data", "20k_set")
 VAL_DATASET_PATH = os.path.join(os.getcwd(), "spec_data", "val_set")
-BATCH_SIZE = 64
+cfg_dict = np.load(os.path.join(DATASET_PATH, 'dataset_config.npy'), allow_pickle=True).item()
+
+BATCH_SIZE = 32
 LR = 1e-3  # as is in the speach article
 SAMPLING_RATE = 16e3
-NFFT = 400
-IN_FEATURE_SIZE = int((NFFT/2) + 1)
+NFFT = cfg_dict['NFFT']
+IN_FEATURE_SIZE = int((NFFT / 2) + 1)
 # IN_FEATURE_SIZE = 80
-HOP_LENGTH = int(SAMPLING_RATE * 0.01)
+HOP_LENGTH = cfg_dict['HOP_LENGTH']
 output_features_dim = IN_FEATURE_SIZE
-num_hiddens = 40
+num_hiddens = 1024
 in_channels = IN_FEATURE_SIZE
-num_residual_layers = 10
-num_residual_hiddens = 20
-embedding_dim = 40
+num_residual_layers = 3
+num_residual_hiddens = 1024
+embedding_dim = 128
 num_embeddings = 1024  # The higher this value, the higher the capacity in the information bottleneck.
 commitment_cost = 0.25  # as recommended in VQ VAE article
 
@@ -42,10 +42,6 @@ jitter_probability = 0.12
 
 n_samples_test_on_validation_set = 500
 last_error_val_test = float('inf')
-
-rev = 0.3
-olap = 0.75
-noverlap = round(olap * NFFT)
 
 
 @profile
@@ -82,7 +78,7 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
                 print('previous_val_recon_error: %.3f' % last_error_val_test)
                 # if recon_error > last_error_val_test:
                 #     print('val_recon_error: %.3f' % recon_error.item())
-                    # break
+                # break
             last_error_val_test = recon_error
 
             print('val_recon_error: %.3f' % recon_error.item())
@@ -103,11 +99,11 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
             print('perplexity: %.3f' % np.mean(train_res_perplexity[-100:]))
             print(f'max in x {torch.max(x).item():.5f}. max recon {torch.max(reconstructed_x).item():.5f} ')
             print(f'min in x {torch.min(x).item():.5f}. min recon {torch.min(reconstructed_x).item():.5f} ')
-            print(f'vq loss out of total loss {((vq_loss/loss)*100).item():.5f}')
+            print(f'vq loss out of total loss {((vq_loss / loss) * 100).item():.5f}')
             print()
-        if (i + 1) % 500 == 0:
+        if (i + 1) % 100 == 0:
             fig, (ax1, ax2) = plt.subplots(2, 1)
-            plot_spectrogram(torch.hstack((x[0].detach(), reconstructed_x[0].detach())).to('cpu'),
+            plot_spectrogram(torch.vstack((x[0].detach(), reconstructed_x[0].detach())).to('cpu'),
                              title=f"{i} Spectrogram - input", ylabel="freq", ax=ax1)
             freq_to_plot = 10
             ax2.plot(x[0, freq_to_plot, :].detach().to('cpu'), label='input')
@@ -118,15 +114,19 @@ def train(model: ConvolutionalVQVAE, optimizer, num_training_updates):
             ax2.set_ylabel('value')
 
             plt.show()
-
+        if (i + 1) % 1000 == 0:
+            torch.save(model, '../models/model_speech_'+str(i+1)+'.pt')
 
     train_res_recon_error_smooth = train_res_recon_error
     train_res_perplexity_smooth = train_res_perplexity
 
+    torch.save(train_res_recon_error_smooth, '../models/model_speech_recon_err_' + str(i + 1) + '.pt')
+    torch.save(train_res_perplexity_smooth, '../models/model_speech_perp_' + str(i + 1) + '.pt')
+
     f = plt.figure(figsize=(16, 8))
     ax = f.add_subplot(1, 2, 1)
     ax.plot(train_res_recon_error_smooth, label='train_dataset')
-    ax.plot([(ind+1) * n_samples_test_on_validation_set for ind in range(len(val_error))], val_error,
+    ax.plot([(ind + 1) * n_samples_test_on_validation_set for ind in range(len(val_error))], val_error,
             label='validation_dataset')
     ax.set_yscale('log')
     ax.set_title('Smoothed NMSE.')
@@ -147,7 +147,7 @@ if __name__ == '__main__':
 
     val_dataset = SpecsDataset(root_dir=VAL_DATASET_PATH, transform=None)
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=True,
-                              collate_fn=lambda x: spec_dataset_preprocessing(x))
+                            collate_fn=lambda x: spec_dataset_preprocessing(x))
 
     model = ConvolutionalVQVAE(in_channels, num_hiddens, embedding_dim, num_residual_layers, num_residual_hiddens,
                                commitment_cost, num_embeddings).to(device)
